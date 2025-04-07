@@ -10,22 +10,26 @@ The module is designed to create publication-quality figures while also handling
 the challenges of visualizing millions of cells efficiently.
 
 Key features:
-    - Standard scatter plots with customizable aesthetics
-    - Fast rendering of large datasets using datashader
-    - Support for coloring by gene expression or metadata
-    - Helper methods for extracting coordinates and color values
-    - Support for saving figures in various formats
+- Standard scatter plots with customizable aesthetics
+- Fast rendering of large datasets using datashader
+- Support for coloring by gene expression or metadata
+- Helper methods for extracting coordinates and color values
+- Support for saving figures in various formats
 
 Upstream dependencies:
-    - SingleCellQC for quality control and filtering
-    - Normalization for data normalization
-    - DimensionalityReduction for embeddings (PCA, UMAP, t-SNE)
-    - SpatialAnalysis for spatial data visualization
+- SingleCellQC for quality control and filtering
+- Normalization for data normalization
+- DimensionalityReduction for embeddings (PCA, UMAP, t-SNE)
+- SpatialAnalysis for spatial data visualization
 
 Downstream applications:
-    - Creating figures for publications
-    - Interactive data exploration
-    - Cluster visualization and annotation
+- Creating figures for publications
+- Interactive data exploration
+- Cluster visualization and annotation
+
+Author: Your Name
+Date: Current Date
+Version: 0.1.0
 """
 
 import numpy as np
@@ -501,4 +505,225 @@ class EnhancedVisualization:
             
         # Close the figure if we created it and aren't returning the axis
         if ax is not None and not return_ax:
+            plt.close()
+            
+    def plot_gene_expression(self,
+                           genes: Union[str, List[str]],
+                           basis: str = 'umap',
+                           ncols: int = 4,
+                           color_map: str = 'viridis',
+                           size: float = 8.0,
+                           alpha: float = 0.8,
+                           save_path: Optional[str] = None,
+                           return_fig: bool = False) -> Optional[plt.Figure]:
+        """
+        Plot expression of multiple genes on an embedding.
+        
+        This method creates a grid of scatter plots showing gene expression patterns
+        on a dimensional embedding (e.g., UMAP, t-SNE, PCA).
+        
+        Parameters:
+            genes (Union[str, List[str]]): Gene or list of genes to plot.
+            basis (str): Embedding to use ('umap', 'tsne', 'pca').
+            ncols (int): Number of columns in the grid.
+            color_map (str): Colormap for gene expression.
+            size (float): Size of the points.
+            alpha (float): Opacity of the points.
+            save_path (Optional[str]): Path to save the figure. If None, the figure is displayed.
+            return_fig (bool): If True, return the figure object.
+            
+        Returns:
+            Optional[plt.Figure]: If return_fig is True, returns the figure object.
+            
+        Raises:
+            ValueError: If the specified embedding is not found.
+            
+        Examples:
+            >>> viz = EnhancedVisualization(adata)
+            >>> 
+            >>> # Plot a single gene
+            >>> viz.plot_gene_expression('CD3E')
+            >>> 
+            >>> # Plot multiple genes
+            >>> viz.plot_gene_expression(
+            ...     ['CD3E', 'CD4', 'CD8A', 'MS4A1', 'LYZ'],
+            ...     color_map='plasma',
+            ...     save_path='marker_genes.png'
+            ... )
+        """
+        # Handle single gene as input
+        if isinstance(genes, str):
+            genes = [genes]
+            
+        # Check if embedding exists
+        embedding_key = f'X_{basis}'
+        if embedding_key not in self.adata.obsm:
+            raise ValueError(f"Embedding '{embedding_key}' not found in adata.obsm")
+            
+        # Calculate grid layout
+        n_genes = len(genes)
+        nrows = int(np.ceil(n_genes / ncols))
+        
+        # Create figure
+        fig, axs = plt.subplots(nrows, ncols, figsize=(4*ncols, 4*nrows))
+        if n_genes == 1:
+            axs = np.array([axs])  # Handle single subplot case
+        axs = axs.flatten()
+        
+        # Get coordinates for the embedding
+        x_coords = self.adata.obsm[embedding_key][:, 0]
+        y_coords = self.adata.obsm[embedding_key][:, 1]
+        
+        # Plot each gene
+        for i, gene in enumerate(genes):
+            if i >= len(axs):
+                break  # Safety check
+                
+            ax = axs[i]
+            
+            # Skip genes not in the dataset
+            if gene not in self.adata.var_names:
+                ax.text(0.5, 0.5, f'Gene {gene} not found',
+                       ha='center', va='center', transform=ax.transAxes)
+                ax.set_title(f'{gene} - Not Found')
+                continue
+                
+            # Extract gene expression
+            expr = self.adata[:, gene].X
+            if sparse.issparse(expr):
+                expr = expr.toarray().flatten()
+                
+            # Plot the gene expression
+            sc = ax.scatter(x_coords, y_coords, c=expr, cmap=color_map, s=size, alpha=alpha)
+            ax.set_title(gene)
+            plt.colorbar(sc, ax=ax, shrink=0.6)
+            
+            # Remove axis ticks for cleaner look
+            ax.set_xticks([])
+            ax.set_yticks([])
+            
+        # Hide empty subplots
+        for i in range(n_genes, len(axs)):
+            axs[i].axis('off')
+            
+        plt.tight_layout()
+        
+        # Save figure if requested
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"Saved figure to {save_path}")
+            
+        # Return figure if requested
+        if return_fig:
+            return fig
+            
+        # Show the plot if not returning figure and not saving
+        if not return_fig and not save_path:
+            plt.show()
+            
+        # Close the figure if we're not returning it
+        if not return_fig:
+            plt.close()
+            
+    def plot_cluster_composition(self,
+                                cluster_key: str,
+                                group_key: str,
+                                plot_type: str = 'stacked',
+                                normalize: bool = True,
+                                figsize: Tuple[float, float] = (12, 6),
+                                save_path: Optional[str] = None,
+                                return_fig: bool = False) -> Optional[plt.Figure]:
+        """
+        Plot the composition of clusters by a grouping variable.
+        
+        This method creates a stacked bar plot or heatmap showing the distribution
+        of a categorical variable across clusters. It's useful for analyzing cluster
+        composition by sample, condition, or other metadata.
+        
+        Parameters:
+            cluster_key (str): Key in adata.obs for the cluster assignments.
+            group_key (str): Key in adata.obs for the grouping variable.
+            plot_type (str): Type of plot ('stacked', 'heatmap').
+            normalize (bool): Whether to normalize counts to percentages.
+            figsize (Tuple[float, float]): Figure size.
+            save_path (Optional[str]): Path to save the figure. If None, the figure is displayed.
+            return_fig (bool): If True, return the figure object.
+            
+        Returns:
+            Optional[plt.Figure]: If return_fig is True, returns the figure object.
+            
+        Raises:
+            ValueError: If specified keys are not found in adata.obs.
+            
+        Examples:
+            >>> viz = EnhancedVisualization(adata)
+            >>> 
+            >>> # Stacked bar plot of samples within clusters
+            >>> viz.plot_cluster_composition(
+            ...     cluster_key='leiden',
+            ...     group_key='sample',
+            ...     plot_type='stacked'
+            ... )
+            >>> 
+            >>> # Heatmap of cell types within clusters
+            >>> viz.plot_cluster_composition(
+            ...     cluster_key='leiden',
+            ...     group_key='cell_type',
+            ...     plot_type='heatmap',
+            ...     save_path='cluster_composition.png'
+            ... )
+        """
+        # Check if keys exist in adata.obs
+        if cluster_key not in self.adata.obs.columns:
+            raise ValueError(f"Cluster key '{cluster_key}' not found in adata.obs")
+        if group_key not in self.adata.obs.columns:
+            raise ValueError(f"Group key '{group_key}' not found in adata.obs")
+            
+        # Create contingency table
+        composition = pd.crosstab(
+            self.adata.obs[cluster_key],
+            self.adata.obs[group_key]
+        )
+        
+        # Normalize if requested
+        if normalize:
+            composition = composition.div(composition.sum(axis=1), axis=0) * 100
+            
+        # Create figure
+        fig, ax = plt.subplots(figsize=figsize)
+        
+        if plot_type == 'stacked':
+            # Create stacked bar plot
+            composition.plot(kind='bar', stacked=True, ax=ax, colormap='tab20')
+            ax.set_xlabel('Cluster')
+            ax.set_ylabel('Percentage' if normalize else 'Count')
+            ax.legend(title=group_key, bbox_to_anchor=(1.05, 1), loc='upper left')
+            
+        elif plot_type == 'heatmap':
+            # Create heatmap
+            sns.heatmap(composition, annot=True, cmap='YlGnBu', fmt='.1f' if normalize else '.0f', ax=ax)
+            ax.set_xlabel(group_key)
+            ax.set_ylabel(cluster_key)
+            
+        else:
+            raise ValueError(f"Unsupported plot type: {plot_type}. Use 'stacked' or 'heatmap'.")
+            
+        plt.title(f'Cluster composition by {group_key}')
+        plt.tight_layout()
+        
+        # Save figure if requested
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"Saved figure to {save_path}")
+            
+        # Return figure if requested
+        if return_fig:
+            return fig
+            
+        # Show the plot if not returning figure and not saving
+        if not return_fig and not save_path:
+            plt.show()
+            
+        # Close the figure if we're not returning it
+        if not return_fig:
             plt.close()
