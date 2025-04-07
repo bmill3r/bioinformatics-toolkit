@@ -510,4 +510,96 @@ class SpatialAnalysis:
     
     def analyze_negative_probes(self, 
                               prefix: str = 'Negative',
-                              bin_size: Optional[float
+                              bin_size: Optional[float] = None) -> pd.DataFrame:
+        """
+        Analyze negative probe statistics within spatial bins.
+        
+        This method calculates statistics for negative control probes (technical controls)
+        across spatial locations. It can work with either original cells or binned data.
+        
+        Parameters:
+            prefix (str): Prefix for identifying negative probe genes.
+            bin_size (Optional[float]): Size of spatial bins. If None, original cells are used.
+            
+        Returns:
+            pd.DataFrame: DataFrame with negative probe statistics for each cell or bin.
+            
+        Raises:
+            ValueError: If no negative probes are found with the specified prefix.
+            
+        Examples:
+            >>> spatial = SpatialAnalysis(adata)
+            >>> 
+            >>> # Analyze negative probes on original cells
+            >>> neg_stats = spatial.analyze_negative_probes()
+            >>> 
+            >>> # Analyze negative probes in spatial bins
+            >>> neg_stats = spatial.analyze_negative_probes(bin_size=100)
+            >>> 
+            >>> # Use a different prefix for negative probes
+            >>> neg_stats = spatial.analyze_negative_probes(prefix='NegControl')
+            >>> 
+            >>> # Create a spatial plot of negative probe mean
+            >>> plt.scatter(
+            ...     neg_stats['x'], 
+            ...     neg_stats['y'], 
+            ...     c=neg_stats['negative_mean'], 
+            ...     cmap='viridis'
+            ... )
+        
+        Notes:
+            - Useful for assessing background noise levels across the tissue
+            - Can identify regions with technical artifacts
+            - Statistics calculated: mean, sum, standard deviation, coefficient of variation
+            - Individual probe values are also included in the output DataFrame
+            - Results include spatial coordinates for easy visualization
+        """
+        # Identify negative probes
+        negative_probes = [gene for gene in self.adata.var_names if gene.startswith(prefix)]
+        
+        if len(negative_probes) == 0:
+            raise ValueError(f"No negative probes found with prefix '{prefix}'")
+            
+        print(f"Found {len(negative_probes)} negative probes with prefix '{prefix}'")
+        
+        # Use original cells or create bins
+        if bin_size is None:
+            # Use original cells
+            adata = self.adata
+            spatial_unit = "cell"
+        else:
+            # Create spatial bins
+            adata = self.create_spatial_grid(bin_size=bin_size, genes=negative_probes)
+            spatial_unit = "bin"
+            
+        # Calculate statistics for each spatial unit
+        results = []
+        
+        for i in range(adata.n_obs):
+            # Extract expression of negative probes
+            expr = adata[i, negative_probes].X
+            if sparse.issparse(expr):
+                expr = expr.toarray().flatten()
+                
+            # Calculate statistics
+            result = {
+                f'{spatial_unit}_id': adata.obs_names[i],
+                'x': adata.obsm[self.spatial_key][i, 0],
+                'y': adata.obsm[self.spatial_key][i, 1],
+                'negative_mean': np.mean(expr),
+                'negative_sum': np.sum(expr),
+                'negative_sd': np.std(expr),
+                'negative_cv': np.std(expr) / np.mean(expr) if np.mean(expr) > 0 else np.nan
+            }
+            
+            # Add statistics for individual probes
+            for j, probe in enumerate(negative_probes):
+                probe_value = expr[j]
+                result[f'{probe}'] = probe_value
+                
+            results.append(result)
+            
+        # Convert to DataFrame
+        stats_df = pd.DataFrame(results)
+        
+        return stats_df
