@@ -11,6 +11,22 @@ dimensionality and focus analysis on biologically relevant genes.
 Feature selection is an important step to eliminate genes that do not contribute
 meaningful signal and to reduce computational requirements for downstream analysis.
 
+Key features:
+- Identification of highly variable genes using various methods
+- Visualization of feature selection results
+- Support for marker gene selection
+- Expression-based gene filtering
+- Integration with downstream dimensionality reduction
+
+Upstream dependencies:
+- SingleCellQC for quality control and filtering
+- Normalization for data normalization
+
+Downstream applications:
+- DimensionalityReduction for PCA, UMAP, t-SNE
+- GeneSetScoring for pathway analysis
+- Clustering for cell type identification
+
 Author: Your Name
 Date: Current Date
 Version: 0.1.0
@@ -319,3 +335,182 @@ class FeatureSelection:
             self.adata = adata
         else:
             return adata
+            
+    def rank_genes_groups(self,
+                         groupby: str,
+                         method: str = 'wilcoxon',
+                         n_genes: int = 50,
+                         corr_method: str = 'benjamini-hochberg',
+                         inplace: bool = True) -> Optional[ad.AnnData]:
+        """
+        Rank genes for characterizing groups.
+        
+        This function identifies marker genes for groups of cells using
+        differential expression tests. It can be used to find markers for
+        clusters or other cell annotations.
+        
+        Args:
+            groupby: Column in adata.obs that defines the groups
+            method: Statistical method ('wilcoxon', 't-test', 'logreg', etc.)
+            n_genes: Number of top genes to report for each group
+            corr_method: Multiple testing correction method
+            inplace: Whether to modify self.adata or return a new object
+            
+        Returns:
+            If inplace=False, returns AnnData with rank_genes_groups results
+            
+        Raises:
+            ValueError: If group column is not found in adata.obs
+        """
+        if groupby not in self.adata.obs:
+            raise ValueError(f"Group column {groupby} not found in adata.obs")
+            
+        print(f"Ranking genes for groups defined by '{groupby}' using {method} test")
+        
+        # Work with either the original object or a copy
+        adata = self.adata if inplace else self.adata.copy()
+        
+        # Rank genes for each group
+        sc.tl.rank_genes_groups(
+            adata,
+            groupby=groupby,
+            method=method,
+            n_genes=n_genes,
+            corr_method=corr_method
+        )
+        
+        print(f"Ranked genes for {adata.obs[groupby].nunique()} groups")
+        
+        # Update the object
+        if inplace:
+            self.adata = adata
+        else:
+            return adata
+            
+    def plot_ranked_genes(self,
+                        n_genes: int = 10,
+                        groupby: Optional[str] = None,
+                        save_path: Optional[str] = None,
+                        figsize: Optional[Tuple[float, float]] = None,
+                        return_fig: bool = False) -> Optional[plt.Figure]:
+        """
+        Plot the top ranked genes for each group.
+        
+        This function creates heatmaps and/or dot plots of the top genes
+        for each group, as determined by rank_genes_groups.
+        
+        Args:
+            n_genes: Number of top genes to plot for each group
+            groupby: Column in adata.obs that defines the groups
+                    (defaults to the same used in rank_genes_groups)
+            save_path: Path to save the figure (None displays the plot instead)
+            figsize: Figure size
+            return_fig: If True, return the figure object
+            
+        Returns:
+            If return_fig is True, returns the matplotlib figure object
+            
+        Raises:
+            ValueError: If rank_genes_groups has not been run
+        """
+        if 'rank_genes_groups' not in self.adata.uns:
+            raise ValueError(
+                "Gene ranking results not found. "
+                "Please run rank_genes_groups first."
+            )
+            
+        # Use the automatically determined figsize if not provided
+        if figsize is None:
+            if n_genes <= 10:
+                figsize = (10, 8)
+            else:
+                figsize = (10, n_genes * 0.4 + 2)
+        
+        print(f"Plotting top {n_genes} genes per group")
+        
+        # Get the group key if not specified
+        if groupby is None:
+            groupby = self.adata.uns['rank_genes_groups']['params']['groupby']
+            
+        # Create the figure
+        fig = plt.figure(figsize=figsize)
+        
+        # Use scanpy's plotting function for ranked genes
+        sc.pl.rank_genes_groups_heatmap(
+            self.adata,
+            n_genes=n_genes,
+            groupby=groupby,
+            show=False,
+            show_gene_labels=True,
+            dendrogram=True
+        )
+        
+        # Save or display the figure
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"Saved figure to {save_path}")
+            
+        # Return figure if requested
+        if return_fig:
+            return fig
+        
+        # Show the plot if not saving
+        if not save_path:
+            plt.show()
+            
+        # Close the figure
+        plt.close()
+        
+    def get_top_ranked_genes(self, n_genes: int = 10) -> pd.DataFrame:
+        """
+        Get the top ranked genes for each group.
+        
+        This function retrieves the top genes for each group from the
+        rank_genes_groups results, along with their statistics.
+        
+        Args:
+            n_genes: Number of top genes to retrieve for each group
+            
+        Returns:
+            DataFrame with top genes and their statistics
+            
+        Raises:
+            ValueError: If rank_genes_groups has not been run
+        """
+        if 'rank_genes_groups' not in self.adata.uns:
+            raise ValueError(
+                "Gene ranking results not found. "
+                "Please run rank_genes_groups first."
+            )
+            
+        # Get the group names
+        groups = self.adata.uns['rank_genes_groups']['names'].dtype.names
+        
+        # Initialize a dictionary to store results
+        results = []
+        
+        # Extract results for each group
+        for group in groups:
+            # Get gene names
+            genes = self.adata.uns['rank_genes_groups']['names'][group][:n_genes]
+            
+            # Get statistics
+            scores = self.adata.uns['rank_genes_groups']['scores'][group][:n_genes]
+            pvals = self.adata.uns['rank_genes_groups']['pvals'][group][:n_genes]
+            logfoldchanges = self.adata.uns['rank_genes_groups']['logfoldchanges'][group][:n_genes]
+            
+            # Store in dictionary
+            for i in range(len(genes)):
+                results.append({
+                    'group': group,
+                    'rank': i + 1,
+                    'gene': genes[i],
+                    'score': scores[i],
+                    'logfoldchange': logfoldchanges[i],
+                    'pval': pvals[i]
+                })
+        
+        # Convert to DataFrame
+        df = pd.DataFrame(results)
+        
+        return df
