@@ -1,3 +1,42 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+GeneSetScoring: Gene Set Scoring module for single-cell RNA-seq data analysis.
+
+This module provides functions and classes to evaluate the activity of gene sets
+across single cells using methods including AUCell (Area Under the Curve). It integrates
+with the existing single-cell analysis toolkit and works directly with AnnData objects.
+
+The primary use cases include:
+- Scoring known gene signatures (e.g., cell type markers, pathways)
+- Detecting pathway or gene program activity in cell subpopulations
+- Comparing gene set enrichment across different cell groups
+- Identifying cells where specific biological processes are active
+
+Key features:
+- Support for adding gene sets from various sources
+- Implementation of AUCell and Scanpy-based scoring methods
+- Visualization of gene set activities
+- Analysis of gene set enrichment across cell groups
+- Clustering cells based on gene set activities
+
+Upstream dependencies:
+- SingleCellQC: For initial data quality control
+- Normalization: Normalized data is required for accurate scoring
+- DimensionalityReduction: UMAP/t-SNE embeddings for visualization
+
+Downstream applications:
+- EnhancedVisualization: For further customized visualizations
+- Clustering analysis based on gene set activities
+- Cell type annotation using marker gene sets
+- Regulatory network inference
+
+Author: Your Name
+Date: Current Date
+Version: 0.1.0
+"""
+
 import numpy as np
 import pandas as pd
 import scanpy as sc
@@ -9,9 +48,19 @@ import seaborn as sns
 from sklearn.metrics import auc
 import warnings
 
+
 class GeneSetScoring:
     """
     A class for gene set scoring in single-cell data, including AUCell-inspired implementation.
+    
+    This class provides methods for scoring gene set activity across single cells, helping
+    to identify pathway activation, cell types, and other biological signals. The core
+    functionality is based on the AUCell approach, which uses the area under the recovery
+    curve to quantify gene set enrichment in individual cells.
+    
+    Attributes:
+        adata (AnnData): AnnData object containing gene expression data.
+        gene_sets (Dict): Dictionary storing gene sets and their properties.
     """
     
     def __init__(self, adata: ad.AnnData):
@@ -19,9 +68,7 @@ class GeneSetScoring:
         Initialize with AnnData object.
         
         Parameters:
-        -----------
-        adata : ad.AnnData
-            AnnData object with gene expression data
+            adata (ad.AnnData): AnnData object with gene expression data
         """
         self.adata = adata
         self.gene_sets = {}
@@ -42,13 +89,9 @@ class GeneSetScoring:
         Add a gene set to be scored.
         
         Parameters:
-        -----------
-        name : str
-            Name of the gene set
-        genes : List[str]
-            List of gene identifiers in the set
-        description : Optional[str]
-            Optional description of the gene set
+            name (str): Name of the gene set
+            genes (List[str]): List of gene identifiers in the set
+            description (Optional[str]): Optional description of the gene set
         """
         # Check which genes are present in the dataset
         genes_present = [gene for gene in genes if gene in self.adata.var_names]
@@ -76,11 +119,8 @@ class GeneSetScoring:
         Add multiple gene sets from a dictionary.
         
         Parameters:
-        -----------
-        gene_sets_dict : Dict[str, List[str]]
-            Dictionary mapping gene set names to lists of genes
-        descriptions : Optional[Dict[str, str]]
-            Optional dictionary of descriptions keyed by gene set name
+            gene_sets_dict (Dict[str, List[str]]): Dictionary mapping gene set names to lists of genes
+            descriptions (Optional[Dict[str, str]]): Optional dictionary of descriptions keyed by gene set name
         """
         for name, genes in gene_sets_dict.items():
             description = None if descriptions is None else descriptions.get(name)
@@ -92,11 +132,8 @@ class GeneSetScoring:
         Add gene sets from a GMT (Gene Matrix Transposed) file.
         
         Parameters:
-        -----------
-        gmt_file : str
-            Path to the GMT file
-        selected_gene_sets : Optional[List[str]]
-            If provided, only load these gene sets from the file
+            gmt_file (str): Path to the GMT file
+            selected_gene_sets (Optional[List[str]]): If provided, only load these gene sets from the file
         """
         gene_sets_dict = {}
         descriptions_dict = {}
@@ -128,16 +165,16 @@ class GeneSetScoring:
         """
         Score gene sets using the AUCell method.
         
+        This method implements a simplified version of the AUCell algorithm, which
+        quantifies gene set enrichment based on the area under the recovery curve.
+        It ranks genes by expression in each cell and calculates the enrichment
+        of the gene set among the top-ranked genes.
+        
         Parameters:
-        -----------
-        threshold : Optional[float]
-            Threshold for binarizing the ranks (default: top 5% of expressed genes)
-        n_bins : int
-            Number of bins for the AUC calculation
-        normalize : bool
-            Whether to normalize scores between 0 and 1
-        gene_sets : Optional[List[str]]
-            List of gene set names to score. If None, score all added gene sets
+            threshold (Optional[float]): Threshold for binarizing the ranks (default: top 5% of expressed genes)
+            n_bins (int): Number of bins for the AUC calculation
+            normalize (bool): Whether to normalize scores between 0 and 1
+            gene_sets (Optional[List[str]]): List of gene set names to score. If None, score all added gene sets
         """
         if len(self.gene_sets) == 0:
             raise ValueError("No gene sets have been added")
@@ -225,14 +262,14 @@ class GeneSetScoring:
         """
         Score gene sets using Scanpy's implementation.
         
+        This method uses Scanpy's built-in score_genes function to score gene sets.
+        It calculates the average expression of genes in the gene set, subtracted
+        by the average expression of a control gene set with similar expression.
+        
         Parameters:
-        -----------
-        gene_sets : Optional[List[str]]
-            List of gene set names to score. If None, score all added gene sets
-        ctrl_size : int
-            Number of control genes for the scanpy score_genes implementation 
-        score_name_prefix : str
-            Prefix for the score names in adata.obs
+            gene_sets (Optional[List[str]]): List of gene set names to score. If None, score all added gene sets
+            ctrl_size (int): Number of control genes for the scanpy score_genes implementation 
+            score_name_prefix (str): Prefix for the score names in adata.obs
         """
         if len(self.gene_sets) == 0:
             raise ValueError("No gene sets have been added")
@@ -267,28 +304,17 @@ class GeneSetScoring:
         Plot gene set scores on a UMAP or t-SNE embedding.
         
         Parameters:
-        -----------
-        gene_set : str
-            Name of the gene set to plot
-        score_type : str
-            Prefix for the score column (default: "AUCell_")
-        groupby : Optional[str]
-            Column name in adata.obs to group cells by
-        use_raw : bool
-            Whether to use raw data
-        cmap : str
-            Colormap for the plot
-        size : int
-            Size of the points
-        save_path : Optional[str]
-            Path to save the figure
-        show : bool
-            Whether to display the figure
+            gene_set (str): Name of the gene set to plot
+            score_type (str): Prefix for the score column (default: "AUCell_")
+            groupby (Optional[str]): Column name in adata.obs to group cells by
+            use_raw (bool): Whether to use raw data
+            cmap (str): Colormap for the plot
+            size (int): Size of the points
+            save_path (Optional[str]): Path to save the figure
+            show (bool): Whether to display the figure
             
         Returns:
-        --------
-        Optional[plt.Figure]
-            The figure if show=False, otherwise None
+            Optional[plt.Figure]: The figure if show=False, otherwise None
         """
         # Check if the gene set has been scored
         score_key = f"{score_type}{gene_set}"
@@ -338,24 +364,15 @@ class GeneSetScoring:
         Plot gene set scores as violin plots, grouped by a categorical variable.
         
         Parameters:
-        -----------
-        gene_sets : List[str]
-            Names of the gene sets to plot
-        groupby : str
-            Column name in adata.obs to group cells by
-        score_type : str
-            Prefix for the score column (default: "AUCell_")
-        figsize : Tuple[int, int]
-            Figure size
-        save_path : Optional[str]
-            Path to save the figure
-        show : bool
-            Whether to display the figure
+            gene_sets (List[str]): Names of the gene sets to plot
+            groupby (str): Column name in adata.obs to group cells by
+            score_type (str): Prefix for the score column (default: "AUCell_")
+            figsize (Tuple[int, int]): Figure size
+            save_path (Optional[str]): Path to save the figure
+            show (bool): Whether to display the figure
             
         Returns:
-        --------
-        Optional[plt.Figure]
-            The figure if show=False, otherwise None
+            Optional[plt.Figure]: The figure if show=False, otherwise None
         """
         # Check if the gene sets have been scored
         score_keys = [f"{score_type}{gs}" for gs in gene_sets]
@@ -406,20 +423,13 @@ class GeneSetScoring:
         Find cells with high gene set scores.
         
         Parameters:
-        -----------
-        gene_set : str
-            Name of the gene set
-        score_type : str
-            Prefix for the score column (default: "AUCell_")
-        threshold : Optional[float]
-            Explicit threshold value. If None, use percentile
-        percentile : float
-            Percentile to use as threshold (default: 95)
+            gene_set (str): Name of the gene set
+            score_type (str): Prefix for the score column (default: "AUCell_")
+            threshold (Optional[float]): Explicit threshold value. If None, use percentile
+            percentile (float): Percentile to use as threshold (default: 95)
             
         Returns:
-        --------
-        np.ndarray
-            Boolean mask of cells with high scores
+            np.ndarray: Boolean mask of cells with high scores
         """
         score_key = f"{score_type}{gene_set}"
         if score_key not in self.adata.obs.columns:
@@ -447,18 +457,12 @@ class GeneSetScoring:
         Get the top scoring cells for a gene set.
         
         Parameters:
-        -----------
-        gene_set : str
-            Name of the gene set
-        score_type : str
-            Prefix for the score column (default: "AUCell_")
-        n_cells : int
-            Number of top cells to return
+            gene_set (str): Name of the gene set
+            score_type (str): Prefix for the score column (default: "AUCell_")
+            n_cells (int): Number of top cells to return
             
         Returns:
-        --------
-        pd.DataFrame
-            DataFrame with top cells and their scores
+            pd.DataFrame: DataFrame with top cells and their scores
         """
         score_key = f"{score_type}{gene_set}"
         if score_key not in self.adata.obs.columns:
@@ -485,18 +489,12 @@ class GeneSetScoring:
         Calculate enrichment statistics for a gene set across different groups.
         
         Parameters:
-        -----------
-        gene_set : str
-            Name of the gene set
-        groupby : str
-            Column name in adata.obs to group cells by
-        score_type : str
-            Prefix for the score column (default: "AUCell_")
+            gene_set (str): Name of the gene set
+            groupby (str): Column name in adata.obs to group cells by
+            score_type (str): Prefix for the score column (default: "AUCell_")
             
         Returns:
-        --------
-        pd.DataFrame
-            DataFrame with enrichment statistics per group
+            pd.DataFrame: DataFrame with enrichment statistics per group
         """
         score_key = f"{score_type}{gene_set}"
         if score_key not in self.adata.obs.columns:
@@ -533,9 +531,7 @@ class GeneSetScoring:
         Score gene sets using both AUCell and Scanpy's implementation.
         
         Parameters:
-        -----------
-        gene_sets : Optional[List[str]]
-            List of gene sets to score. If None, score all added gene sets
+            gene_sets (Optional[List[str]]): List of gene sets to score. If None, score all added gene sets
         """
         self.score_aucell(gene_sets=gene_sets)
         self.score_scanpy(gene_sets=gene_sets)
@@ -548,20 +544,13 @@ class GeneSetScoring:
         Compare AUCell and Scanpy scoring methods for a gene set.
         
         Parameters:
-        -----------
-        gene_set : str
-            Name of the gene set to compare
-        figsize : Tuple[int, int]
-            Figure size
-        save_path : Optional[str]
-            Path to save the figure
-        show : bool
-            Whether to display the figure
+            gene_set (str): Name of the gene set to compare
+            figsize (Tuple[int, int]): Figure size
+            save_path (Optional[str]): Path to save the figure
+            show (bool): Whether to display the figure
             
         Returns:
-        --------
-        Optional[plt.Figure]
-            The figure if show=False, otherwise None
+            Optional[plt.Figure]: The figure if show=False, otherwise None
         """
         aucell_key = f"AUCell_{gene_set}"
         scanpy_key = f"Score_{gene_set}"
@@ -617,17 +606,11 @@ class GeneSetScoring:
         Cluster cells based on their gene set scores.
         
         Parameters:
-        -----------
-        gene_sets : List[str]
-            List of gene sets to use for clustering
-        n_clusters : int
-            Number of clusters to find
-        score_type : str
-            Prefix for the score column (default: "AUCell_")
-        cluster_key : str
-            Key to store cluster assignments in adata.obs
-        method : str
-            Clustering method ('kmeans' or 'leiden')
+            gene_sets (List[str]): List of gene sets to use for clustering
+            n_clusters (int): Number of clusters to find
+            score_type (str): Prefix for the score column (default: "AUCell_")
+            cluster_key (str): Key to store cluster assignments in adata.obs
+            method (str): Clustering method ('kmeans' or 'leiden')
         """
         from sklearn.cluster import KMeans
         
@@ -667,34 +650,3 @@ class GeneSetScoring:
             
         print(f"Clustered cells into {n_clusters} groups based on {len(gene_sets)} gene sets")
         print(f"Cluster assignments stored in adata.obs['{cluster_key}']")
-
-
-# Example usage
-if __name__ == "__main__":
-    # Load sample data
-    adata = sc.datasets.pbmc3k()
-    sc.pp.normalize_total(adata, target_sum=1e4)
-    sc.pp.log1p(adata)
-    
-    # Initialize gene set scoring
-    gss = GeneSetScoring(adata)
-    
-    # Add gene sets
-    gss.add_gene_set("T_cell_markers", ["CD3D", "CD3E", "CD3G", "CD8A", "CD4"])
-    gss.add_gene_set("B_cell_markers", ["CD79A", "CD79B", "MS4A1", "CD19"])
-    gss.add_gene_set("Myeloid_markers", ["S100A8", "S100A9", "LYZ", "CST3"])
-    
-    # Score gene sets
-    gss.score_aucell()
-    gss.score_scanpy()
-    
-    # Compare scoring methods
-    gss.compare_scoring_methods("T_cell_markers")
-    
-    # Find cells with high scores
-    high_tcell_mask = gss.find_cells_with_high_scores("T_cell_markers")
-    
-    # Get gene set enrichment by cluster
-    sc.tl.leiden(adata)
-    enrichment_df = gss.get_gene_set_enrichment_by_group("T_cell_markers", "leiden")
-    print(enrichment_df)
