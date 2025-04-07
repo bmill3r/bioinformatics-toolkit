@@ -1,0 +1,55 @@
+You are an expert bioinformatician and software developer. You need to create a set of general computational tools and functions to perform a variety of common tasks in biological data science pre and post processing and analytics. The data these tools ingest also needs to be generalized. Typically these would be AnnData objects, matrices, tables, parquet stored, and zarr stored files. The data would be cell by gene count matrices, cell by spatial position data tables, and cell by feature metadata. There could also be image data too. 
+
+I will in plain bioinformatician language ask a request and I would like you to provide both python and R code to execute the task. 
+
+The first request is to ingest a cell x gene count matrix and QC the data. Summary stats should be returned as well as effective visualizations of the data that is the gold standard
+
+I would also like a way to normalize the data based on gold standard practices.
+
+If there is spatial data, then I want too be able to output gene total counts expression on cells where their positions are points on a scatterplot colored by the expression. 
+
+I also want the ability to visualize the expression of individual genes in a list of genes. So this would generate a series of panels where each panel is the scatter plot of a different gene. 
+
+If there is spatial data, I also want the ability to create square bins of the data of a defined size. 
+
+If there’s spatial data then I want to be able to calculate the Moran I for each gene. 
+
+If there’s negative probes then I want to be able to get mean, total counts, and sd based on the different negative probes that would be genes that start with Negative in each square bin
+
+You are an expert bioinformatician with decades of experience preprocessing single cell and spatial data so how would you use this tool to read in raw single cell data and interpret the QC stats and plots to decide if it was good quality to use for additional down stream analyses like clustering and DEG analysis?
+
+I also want the ability to normalize, transform, identify highly variable genes, perform dimensionality reduction, nearest neighbor graph and finally umap embedding and visualization. Similar to the spatial plots, the ability to plot them like scatter plots and colored by continuous variables like total counts or some other metadata feature or gene expression value. 
+
+For both the R and Python code, I want the ability to plot many many points like with the libraries scattermore in R and an equivalent in python to make any of the scatterplots able to render very fast. 
+
+Also for all the plots that the tool generates, I want the ability to add to them, too. Like changing, removing, or adding plot characters and attributes and other aesthetics. And I want to be able to save the plots too
+
+Now I need a detailed tutorial for both the R and Python implementations to go from reading in different data types to performing QC to filtering, and then creating umaps and spatial plots of the cells with different continuous qc features and expression of selected genes
+
+Now I need instructions to create a docker image with these tools installed. And also instructions to create a conda environment. In both cases I want the R version and the python version. 
+
+If docker isn’t available, then I also want an example using podman. 
+
+For reading and writing data, it will be on an aws s3 so I want functionality to quickly read and write from a specified aws s3 bucket. This assumes the default IAM credentials in the aws/credentials file but I want the ability to choose other profiles too
+
+Now show me that previous tutorial but also include examples using the S3 utilities. 
+
+How do all of these scripts and functions fit together? How would I organize these in folders in a repo to execute the functions correctly? Show me for both the R and python
+
+Now what about AUCell? What does it do and how can i incorporate this into the workflow available by these tools? What would be some examples of using it? Would it be to look for gene signatures or gene modules or gene pathways? If so how would  one do this and design a function or functions around it? This would be for python. But does R have something similar and if so can you also show me R equivalent code?
+
+Now you need to hand the code repos off to another developer who needs to understand how everything fit’s together and what each piece of code is doing. For the functions and classes, for both R and python, can you also provide detailed docstrings in plain English and also other upstream and downstream functions that typically connect them. It should be in a way that can be picked up by sphinx for python and an equivalent in R
+
+There should be an explanation in plain english of the inputs and outputs and what each function is doing, and also comments for lines explaining their purpose such that future developers can more easily understand the code and iterate on it.
+
+Each of these should be its own python .py or .R file with the associated functions or class methods. Each class, or at least the data object contained within each class should be passable to the other classes in the pipeline. In this way, if I ask you to make a change to a function or class, then you can just regenerate the specific script, making it easier to update the code base. 
+
+I would also like you to update the full example Python Tutorial and R tutorial using this Analysis Pipeline. 
+
+Remember that the input when starting the pipeline should be able to read in h5, h5ad, parquet, zarr, csv, or mtx files as the cell  by gene matrix and also metadata tables if available. These will be coming from an s3 bucket. If there is an intermediate data object, I should be able to write this to a bucket and then read it back to continue the analysis later on. Presumably this would be an anndata object in the case of python. In R this would probably be a seurat object.
+
+In the tutorials, include how would you use this tool to read in raw single cell data and interpret the QC stats and plots to decide if it was good quality to use for additional down stream analyses like clustering and DEG analysis, as if you are an expert bioinformatician with decades of experience preprocessing single cell and spatial data. Do this for each step, including key considerations and things to check for the Normalization, FeatureSelection, DimensionalityReduction, GeneSetScoring steps.
+
+For R, assume that users will be using the SCTransform method as default, but have the ability to use other standard workflows, like depth norm, log transform, etc.
+
+Finally, include instructions how to either pip install locally the python package, or locally import the R library in a jupyter notebook. Also include the dependencies that should be installed in either a docker or podman or conda environment to run this code base. For podman, how would I build the image locally to run? Within the image, while performing the pipeline, I would like to be able to mount a folder location on my local machine but will be downloading and saving data to s3 buckets primarily.
