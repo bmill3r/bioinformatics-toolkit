@@ -10,22 +10,26 @@ The module is designed to integrate seamlessly with the single-cell and spatial
 analysis toolkit, providing S3 data access capabilities to all analysis modules.
 
 Key features:
-    - Reading/writing AnnData objects to/from S3
-    - Handling 10X Genomics data format
-    - Processing CSV, loom, and Seurat RDS files
-    - Support for AWS profiles for credential management
-    - Directory upload/download capabilities
-    - Utilities for saving analysis outputs and figures to S3
+- Reading/writing AnnData objects to/from S3
+- Handling 10X Genomics data format
+- Processing CSV, loom, and Seurat RDS files
+- Support for AWS profiles for credential management
+- Directory upload/download capabilities
+- Utilities for saving analysis outputs and figures to S3
 
 Upstream dependencies:
-    - AWS credentials configured in ~/.aws/credentials or via environment variables
-    - boto3 and s3fs Python packages
-    - anndata package for AnnData operations
+- AWS credentials configured in ~/.aws/credentials or via environment variables
+- boto3 and s3fs Python packages
+- anndata package for AnnData operations
 
 Downstream applications:
-    - Used by SingleCellQC, SpatialAnalysis, and other toolkit modules
-    - Enables cloud-based analysis workflows
-    - Supports persistent storage of analysis results
+- Used by SingleCellQC, SpatialAnalysis, and other toolkit modules
+- Enables cloud-based analysis workflows
+- Supports persistent storage of analysis results
+
+Author: Your Name
+Date: Current Date
+Version: 0.1.0
 """
 
 import os
@@ -413,119 +417,188 @@ class S3Utils:
         with self.fs.open(s3_path, 'w') as f:
             df.to_csv(f, **kwargs)
     
-    def read_loom(self, bucket: str, key: str, 
-                 tmp_dir: Optional[str] = None) -> ad.AnnData:
+    def read_parquet(self, bucket: str, key: str, **kwargs) -> pd.DataFrame:
         """
-        Read loom file from S3 into AnnData.
+        Read Parquet file from S3 into a pandas DataFrame.
         
-        Downloads a loom file from S3 and loads it into an AnnData object.
+        Opens a Parquet file directly from S3 and reads it into a pandas DataFrame.
         
         Parameters:
             bucket (str): Name of the S3 bucket.
-            key (str): Key (path) of the loom file in the bucket.
-            tmp_dir (Optional[str]): Temporary directory to store the file. If None, uses '/tmp'.
+            key (str): Key (path) of the Parquet file in the bucket.
+            **kwargs: Additional arguments to pass to pd.read_parquet.
             
         Returns:
-            ad.AnnData: Loaded AnnData object.
-        
+            pd.DataFrame: Loaded pandas DataFrame.
+            
         Examples:
             >>> s3 = S3Utils()
-            >>> # Load a loom file from S3
-            >>> adata = s3.read_loom('my-bucket', 'data/sample.loom')
+            >>> # Read a Parquet file
+            >>> df = s3.read_parquet('my-bucket', 'data/matrix.parquet')
         
         Notes:
-            The loom file format is commonly used for single-cell data,
-            particularly from the loompy ecosystem.
+            This method requires the pyarrow or fastparquet package.
+            All pandas.read_parquet parameters are supported through **kwargs.
         """
-        if tmp_dir is None:
-            tmp_dir = '/tmp'
+        s3_path = f"s3://{bucket}/{key}"
+        print(f"Reading Parquet from {s3_path}...")
+        
+        with self.fs.open(s3_path, 'rb') as f:
+            df = pd.read_parquet(f, **kwargs)
             
-        os.makedirs(tmp_dir, exist_ok=True)
-        filename = os.path.basename(key)
-        local_path = os.path.join(tmp_dir, filename)
-        
-        print(f"Downloading {bucket}/{key} to {local_path}...")
-        self.s3_client.download_file(bucket, key, local_path)
-        
-        print(f"Reading {local_path} into AnnData object...")
-        adata = sc.read_loom(local_path)
-        
-        print(f"Removing temporary file {local_path}")
-        os.remove(local_path)
-            
-        return adata
+        return df
     
-    def read_seurat(self, bucket: str, key: str, 
-                  tmp_dir: Optional[str] = None) -> ad.AnnData:
+    def write_parquet(self, df: pd.DataFrame, bucket: str, key: str, **kwargs) -> None:
         """
-        Read Seurat RDS file from S3 into AnnData using anndata2ri.
+        Write pandas DataFrame to S3 as a Parquet file.
         
-        Downloads a Seurat RDS file from S3 and converts it to an AnnData object.
+        Saves a pandas DataFrame directly to S3 as a Parquet file.
+        
+        Parameters:
+            df (pd.DataFrame): DataFrame to write.
+            bucket (str): Name of the S3 bucket.
+            key (str): Key (path) of the Parquet file in the bucket.
+            **kwargs: Additional arguments to pass to df.to_parquet.
+            
+        Examples:
+            >>> s3 = S3Utils()
+            >>> # Write a DataFrame to Parquet
+            >>> s3.write_parquet(results_df, 'my-bucket', 'results/matrix.parquet')
+        
+        Notes:
+            This method requires the pyarrow or fastparquet package.
+            All pandas.DataFrame.to_parquet parameters are supported through **kwargs.
+        """
+        s3_path = f"s3://{bucket}/{key}"
+        print(f"Writing DataFrame to {s3_path} as Parquet...")
+        
+        with self.fs.open(s3_path, 'wb') as f:
+            df.to_parquet(f, **kwargs)
+    
+    def read_zarr(self, bucket: str, key: str, **kwargs) -> ad.AnnData:
+        """
+        Read Zarr store from S3 into an AnnData object.
+        
+        Loads a Zarr store from S3 into an AnnData object.
         
         Parameters:
             bucket (str): Name of the S3 bucket.
-            key (str): Key (path) of the RDS file in the bucket.
-            tmp_dir (Optional[str]): Temporary directory to store the file. If None, uses '/tmp'.
+            key (str): Key (path) of the Zarr store in the bucket.
+            **kwargs: Additional arguments to pass to ad.read_zarr.
             
         Returns:
             ad.AnnData: Loaded AnnData object.
-        
-        Raises:
-            ImportError: If anndata2ri or rpy2 packages are not installed.
-        
+            
         Examples:
             >>> s3 = S3Utils()
-            >>> # Convert a Seurat object to AnnData
-            >>> adata = s3.read_seurat('my-bucket', 'data/seurat_object.rds')
+            >>> # Read a Zarr store
+            >>> adata = s3.read_zarr('my-bucket', 'data/anndata.zarr')
         
         Notes:
-            This method requires the packages anndata2ri and rpy2, as well as
-            a working R installation with the Seurat package.
+            This method requires the zarr package.
+            The key should point to the root of the Zarr store (directory).
         """
-        try:
-            import anndata2ri
-            import rpy2.robjects as ro
-            from rpy2.robjects.packages import importr
-        except ImportError:
-            raise ImportError("This function requires the packages anndata2ri and rpy2. "
-                             "Please install them with: pip install anndata2ri rpy2")
-            
-        if tmp_dir is None:
-            tmp_dir = '/tmp'
-            
-        os.makedirs(tmp_dir, exist_ok=True)
-        filename = os.path.basename(key)
-        local_path = os.path.join(tmp_dir, filename)
+        s3_path = f"s3://{bucket}/{key}"
+        print(f"Reading Zarr store from {s3_path}...")
         
-        print(f"Downloading {bucket}/{key} to {local_path}...")
-        self.s3_client.download_file(bucket, key, local_path)
+        # Zarr requires a store interface, which we create via s3fs
+        store = s3fs.S3Map(root=s3_path, s3=self.fs)
         
-        print(f"Reading {local_path} into AnnData object via Seurat conversion...")
+        # Read the AnnData object from the Zarr store
+        adata = ad.read_zarr(store, **kwargs)
         
-        # Activate conversion between anndata and R objects
-        anndata2ri.activate()
-        
-        # Import R packages
-        base = importr('base')
-        seurat = importr('Seurat')
-        
-        # Load the Seurat object in R
-        r_seurat = base.readRDS(local_path)
-        
-        # Convert Seurat to SingleCellExperiment
-        sce = seurat.as_SingleCellExperiment(r_seurat)
-        
-        # Convert to AnnData
-        adata = anndata2ri.rpy2py(sce)
-        
-        # Deactivate conversion
-        anndata2ri.deactivate()
-        
-        print(f"Removing temporary file {local_path}")
-        os.remove(local_path)
-            
         return adata
     
+    def write_zarr(self, adata: ad.AnnData, bucket: str, key: str, **kwargs) -> None:
+        """
+        Write AnnData object to S3 as a Zarr store.
+        
+        Saves an AnnData object directly to S3 as a Zarr store.
+        
+        Parameters:
+            adata (ad.AnnData): AnnData object to write.
+            bucket (str): Name of the S3 bucket.
+            key (str): Key (path) of the Zarr store in the bucket.
+            **kwargs: Additional arguments to pass to adata.write_zarr.
+            
+        Examples:
+            >>> s3 = S3Utils()
+            >>> # Write an AnnData object to Zarr
+            >>> s3.write_zarr(adata, 'my-bucket', 'results/anndata.zarr')
+        
+        Notes:
+            This method requires the zarr package.
+            The key should point to the desired location of the Zarr store root.
+            Zarr stores are directory-like structures, so the key should typically end with '.zarr'.
+        """
+        s3_path = f"s3://{bucket}/{key}"
+        print(f"Writing AnnData object to {s3_path} as Zarr store...")
+        
+        # Create an S3 store interface via s3fs
+        store = s3fs.S3Map(root=s3_path, s3=self.fs)
+        
+        # Write the AnnData object to the Zarr store
+        adata.write_zarr(store, **kwargs)
+    
+    def save_figure(self, fig, bucket: str, key: str, 
+                   format: str = 'png', **kwargs) -> None:
+        """
+        Save a matplotlib figure to S3.
+        
+        Renders a matplotlib figure to a buffer and uploads it to S3.
+        
+        Parameters:
+            fig (matplotlib.figure.Figure): Figure to save.
+            bucket (str): Name of the S3 bucket.
+            key (str): Key (path) of the file in the bucket.
+            format (str): File format (e.g., 'png', 'pdf', 'svg').
+            **kwargs: Additional arguments to pass to fig.savefig.
+        
+        Examples:
+            >>> import matplotlib.pyplot as plt
+            >>> s3 = S3Utils()
+            >>> 
+            >>> # Create a figure
+            >>> fig, ax = plt.subplots()
+            >>> ax.plot([1, 2, 3], [4, 5, 6])
+            >>> 
+            >>> # Save figure to S3
+            >>> s3.save_figure(fig, 'my-bucket', 'results/plot.png', dpi=300)
+        
+        Notes:
+            This method supports all matplotlib savefig formats and parameters.
+            The Content-Type of the S3 object is set based on the format.
+        """
+        import io
+        import matplotlib.pyplot as plt
+        
+        # Create a bytes buffer
+        buf = io.BytesIO()
+        
+        # Save the figure to the buffer
+        fig.savefig(buf, format=format, **kwargs)
+        buf.seek(0)
+        
+        # Determine content type based on format
+        content_type_map = {
+            'png': 'image/png',
+            'pdf': 'application/pdf',
+            'svg': 'image/svg+xml',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg'
+        }
+        content_type = content_type_map.get(format, 'application/octet-stream')
+        
+        # Upload the buffer to S3
+        self.s3_client.put_object(
+            Body=buf.getvalue(),
+            Bucket=bucket,
+            Key=key,
+            ContentType=content_type
+        )
+        
+        print(f"Saved figure to {bucket}/{key}")
+        
     def upload_directory(self, local_dir: str, bucket: str, prefix: str) -> None:
         """
         Upload a local directory to S3.
@@ -615,107 +688,3 @@ class S3Utils:
             
             print(f"Downloading {bucket}/{obj_key} to {local_path}...")
             self.s3_client.download_file(bucket, obj_key, local_path)
-    
-    def read_file(self, bucket: str, key: str) -> bytes:
-        """
-        Read a file from S3 into memory.
-        
-        Reads the contents of a file from S3 directly into memory as bytes.
-        
-        Parameters:
-            bucket (str): Name of the S3 bucket.
-            key (str): Key (path) of the file in the bucket.
-            
-        Returns:
-            bytes: File content as bytes.
-        
-        Examples:
-            >>> s3 = S3Utils()
-            >>> # Read a text file from S3
-            >>> content = s3.read_file('my-bucket', 'data/config.txt')
-            >>> text = content.decode('utf-8')
-        
-        Notes:
-            This method is suitable for smaller files that can fit in memory.
-            For larger files, consider using read_h5ad, read_csv, etc.
-        """
-        response = self.s3_client.get_object(Bucket=bucket, Key=key)
-        return response['Body'].read()
-    
-    def write_file(self, content: Union[bytes, str], bucket: str, key: str) -> None:
-        """
-        Write content to a file in S3.
-        
-        Writes bytes or string content directly to a file in S3.
-        
-        Parameters:
-            content (Union[bytes, str]): Content to write to the file.
-            bucket (str): Name of the S3 bucket.
-            key (str): Key (path) of the file in the bucket.
-        
-        Examples:
-            >>> s3 = S3Utils()
-            >>> # Write string content to a file
-            >>> s3.write_file("Hello, world!", 'my-bucket', 'data/hello.txt')
-            >>> 
-            >>> # Write binary content to a file
-            >>> s3.write_file(b'\x00\x01\x02\x03', 'my-bucket', 'data/binary.dat')
-        
-        Notes:
-            If content is a string, it is encoded as UTF-8 before writing.
-        """
-        # Convert string to bytes if needed
-        if isinstance(content, str):
-            content = content.encode('utf-8')
-            
-        self.s3_client.put_object(Body=content, Bucket=bucket, Key=key)
-        print(f"Wrote content to {bucket}/{key}")
-    
-    def save_figure(self, fig, bucket: str, key: str, 
-                   format: str = 'png', **kwargs) -> None:
-        """
-        Save a matplotlib figure to S3.
-        
-        Renders a matplotlib figure to a buffer and uploads it to S3.
-        
-        Parameters:
-            fig (matplotlib.figure.Figure): Figure to save.
-            bucket (str): Name of the S3 bucket.
-            key (str): Key (path) of the file in the bucket.
-            format (str): File format (e.g., 'png', 'pdf', 'svg').
-            **kwargs: Additional arguments to pass to fig.savefig.
-        
-        Examples:
-            >>> import matplotlib.pyplot as plt
-            >>> s3 = S3Utils()
-            >>> 
-            >>> # Create a figure
-            >>> fig, ax = plt.subplots()
-            >>> ax.plot([1, 2, 3], [4, 5, 6])
-            >>> 
-            >>> # Save figure to S3
-            >>> s3.save_figure(fig, 'my-bucket', 'results/plot.png', dpi=300)
-        
-        Notes:
-            This method supports all matplotlib savefig formats and parameters.
-            The Content-Type of the S3 object is set based on the format.
-        """
-        import io
-        import matplotlib.pyplot as plt
-        
-        # Create a bytes buffer
-        buf = io.BytesIO()
-        
-        # Save the figure to the buffer
-        fig.savefig(buf, format=format, **kwargs)
-        buf.seek(0)
-        
-        # Upload the buffer to S3
-        self.s3_client.put_object(
-            Body=buf.getvalue(),
-            Bucket=bucket,
-            Key=key,
-            ContentType=f'image/{format}'
-        )
-        
-        print(f"Saved figure to {bucket}/{key}")
