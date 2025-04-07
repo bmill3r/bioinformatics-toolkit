@@ -12,6 +12,23 @@ of the reduced-dimensional representations.
 Dimensionality reduction is essential for visualizing and analyzing high-dimensional
 single-cell data, revealing underlying structure and relationships between cells.
 
+Key features:
+- Principal Component Analysis (PCA) with variance analysis
+- Uniform Manifold Approximation and Projection (UMAP)
+- t-Distributed Stochastic Neighbor Embedding (t-SNE)
+- Visualization of explained variance in PCA
+- Support for highly variable gene selection
+
+Upstream dependencies:
+- SingleCellQC for quality control and filtering
+- Normalization for data normalization
+- FeatureSelection for identifying highly variable genes
+
+Downstream applications:
+- EnhancedVisualization for advanced plotting
+- Clustering algorithms for cell type identification
+- Trajectory inference for developmental processes
+
 Author: Your Name
 Date: Current Date
 Version: 0.1.0
@@ -50,12 +67,12 @@ class DimensionalityReduction:
         self.adata = adata
         
     def run_pca(self, 
-              n_comps: int = 50,
-              use_highly_variable: bool = True,
-              svd_solver: str = 'arpack',
-              random_state: int = 42,
-              return_info: bool = False,
-              inplace: bool = True) -> Optional[Union[ad.AnnData, Tuple[ad.AnnData, Dict]]]:
+               n_comps: int = 50,
+               use_highly_variable: bool = True,
+               svd_solver: str = 'arpack',
+               random_state: int = 42,
+               return_info: bool = False,
+               inplace: bool = True) -> Optional[Union[ad.AnnData, Tuple[ad.AnnData, Dict]]]:
         """
         Run Principal Component Analysis (PCA) on the data.
         
@@ -128,12 +145,12 @@ class DimensionalityReduction:
             return adata
     
     def plot_pca_variance(self, 
-                        n_pcs: int = 50,
-                        log: bool = False,
-                        threshold: Optional[float] = None,
-                        figsize: Tuple[float, float] = (10, 4),
-                        save_path: Optional[str] = None,
-                        return_fig: bool = False) -> Optional[plt.Figure]:
+                         n_pcs: int = 50,
+                         log: bool = False,
+                         threshold: Optional[float] = None,
+                         figsize: Tuple[float, float] = (10, 4),
+                         save_path: Optional[str] = None,
+                         return_fig: bool = False) -> Optional[plt.Figure]:
         """
         Plot the explained variance ratio of principal components.
         
@@ -217,13 +234,13 @@ class DimensionalityReduction:
         plt.close()
             
     def run_umap(self,
-               n_components: int = 2,
-               min_dist: float = 0.5,
-               spread: float = 1.0,
-               n_neighbors: int = 15,
-               metric: str = 'euclidean',
-               random_state: int = 42,
-               inplace: bool = True) -> Optional[ad.AnnData]:
+                n_components: int = 2,
+                min_dist: float = 0.5,
+                spread: float = 1.0,
+                n_neighbors: int = 15,
+                metric: str = 'euclidean',
+                random_state: int = 42,
+                inplace: bool = True) -> Optional[ad.AnnData]:
         """
         Run UMAP on the data.
         
@@ -280,13 +297,13 @@ class DimensionalityReduction:
             return adata
             
     def run_tsne(self,
-               n_components: int = 2,
-               perplexity: float = 30.0,
-               early_exaggeration: float = 12.0,
-               learning_rate: float = 200.0,
-               random_state: int = 42,
-               n_jobs: int = 8,
-               inplace: bool = True) -> Optional[ad.AnnData]:
+                n_components: int = 2,
+                perplexity: float = 30.0,
+                early_exaggeration: float = 12.0,
+                learning_rate: float = 200.0,
+                random_state: int = 42,
+                n_jobs: int = 8,
+                inplace: bool = True) -> Optional[ad.AnnData]:
         """
         Run t-SNE on the data.
         
@@ -331,6 +348,138 @@ class DimensionalityReduction:
             n_jobs=n_jobs,
             use_rep='X_pca'  # Use PCA representation for faster computation
         )
+        
+        # Update the object
+        if inplace:
+            self.adata = adata
+        else:
+            return adata
+            
+    def run_diffmap(self,
+                  n_comps: int = 15,
+                  n_neighbors: int = 15,
+                  max_dim: int = 100,
+                  random_state: int = 42,
+                  inplace: bool = True) -> Optional[ad.AnnData]:
+        """
+        Run diffusion map dimensionality reduction.
+        
+        Diffusion maps learn the manifold structure of the data by modeling the
+        diffusion process on a graph. They're particularly useful for trajectory
+        inference and capturing continuous processes like differentiation.
+        
+        Args:
+            n_comps: Number of diffusion components to compute
+            n_neighbors: Number of neighbors for the graph
+            max_dim: Maximum number of dimensions to use from the original data
+            random_state: Random seed for reproducibility
+            inplace: Whether to modify self.adata or return a new object
+            
+        Returns:
+            If inplace=False, returns AnnData with diffusion map embedding
+            
+        Note:
+            This function computes or uses an existing nearest neighbors graph before
+            running the diffusion map. The result is stored in adata.obsm['X_diffmap'].
+        """
+        print(f"Running diffusion map with {n_comps} components")
+        
+        # Work with either the original object or a copy
+        adata = self.adata if inplace else self.adata.copy()
+        
+        # Check if PCA has been performed
+        if 'X_pca' not in adata.obsm:
+            print("Warning: No PCA embedding found. Running PCA first.")
+            sc.tl.pca(adata)
+            
+        # Check if neighbors have been computed
+        if 'neighbors' not in adata.uns:
+            # Compute neighbors graph (required for diffusion map)
+            sc.pp.neighbors(adata, n_neighbors=n_neighbors, random_state=random_state)
+        else:
+            print("Using existing neighbors graph")
+            
+        # Run diffusion map
+        sc.tl.diffmap(
+            adata,
+            n_comps=n_comps,
+            random_state=random_state
+        )
+        
+        # Update the object
+        if inplace:
+            self.adata = adata
+        else:
+            return adata
+            
+    def run_clustering(self,
+                      method: str = 'leiden',
+                      resolution: float = 1.0,
+                      n_neighbors: int = 15,
+                      random_state: int = 42,
+                      key_added: str = None,
+                      inplace: bool = True) -> Optional[ad.AnnData]:
+        """
+        Run clustering on the dimensionality-reduced data.
+        
+        This function performs clustering on the neighborhood graph of cells,
+        typically after dimensionality reduction with PCA/UMAP. It's useful
+        for identifying cell types or states.
+        
+        Args:
+            method: Clustering method ('leiden' or 'louvain')
+            resolution: Resolution parameter controlling clustering granularity
+            n_neighbors: Number of neighbors for the graph (if not already computed)
+            random_state: Random seed for reproducibility
+            key_added: Key under which to add the cluster labels (default: method name)
+            inplace: Whether to modify self.adata or return a new object
+            
+        Returns:
+            If inplace=False, returns AnnData with clustering results
+            
+        Note:
+            This function computes or uses an existing nearest neighbors graph before
+            running clustering. The cluster labels are stored in adata.obs[key_added].
+        """
+        if method not in ['leiden', 'louvain']:
+            raise ValueError(f"Unsupported clustering method: {method}. Use 'leiden' or 'louvain'.")
+            
+        print(f"Running {method} clustering with resolution {resolution}")
+        
+        # Set default key name based on the method if not provided
+        if key_added is None:
+            key_added = method
+            
+        # Work with either the original object or a copy
+        adata = self.adata if inplace else self.adata.copy()
+        
+        # Check if neighbors have been computed
+        if 'neighbors' not in adata.uns:
+            # Check if PCA has been performed
+            if 'X_pca' not in adata.obsm:
+                print("Warning: No PCA embedding found. Running PCA first.")
+                sc.tl.pca(adata)
+                
+            # Compute neighbors graph (required for clustering)
+            sc.pp.neighbors(adata, n_neighbors=n_neighbors, random_state=random_state)
+            
+        # Run the specified clustering method
+        if method == 'leiden':
+            sc.tl.leiden(
+                adata,
+                resolution=resolution,
+                key_added=key_added,
+                random_state=random_state
+            )
+        else:  # louvain
+            sc.tl.louvain(
+                adata,
+                resolution=resolution,
+                key_added=key_added,
+                random_state=random_state
+            )
+            
+        print(f"Identified {adata.obs[key_added].nunique()} clusters")
         
         # Update the object
         if inplace:
