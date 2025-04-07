@@ -12,6 +12,24 @@ and genes based on quality thresholds.
 The module is designed to be the starting point for single-cell data analysis,
 performing the necessary pre-processing steps before downstream analysis.
 
+Key features:
+- Loading data from various sources (10X, CSV, H5AD, etc.)
+- Calculating standard QC metrics (genes per cell, counts per cell, etc.)
+- Identifying mitochondrial and ribosomal genes
+- Visualizing QC metrics with customizable plots
+- Automated threshold determination for QC filtering
+- Flexible cell and gene filtering
+- Comprehensive summary statistics
+
+Upstream dependencies:
+- S3Utils for loading data from AWS S3 (optional)
+
+Downstream applications:
+- Normalization modules for data normalization
+- FeatureSelection for finding highly variable genes
+- DimensionalityReduction for PCA, UMAP, etc.
+- SpatialAnalysis for spatial transcriptomics data
+
 Author: Your Name
 Date: Current Date
 Version: 0.1.0
@@ -708,7 +726,7 @@ class SingleCellQC:
             ValueError: If no data has been loaded
         """
         if self.adata is None:
-            raise ValueError("No data loaded. Please call load_data() first.")
+            raise ValueError("No data loaded. Please call
         
         self.log("Computing summary statistics")
         
