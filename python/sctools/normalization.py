@@ -1,5 +1,8 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 """
-Single-Cell RNA-seq Normalization Module
+Normalization: Methods for normalizing single-cell RNA-seq data
 
 This module provides the Normalization class for normalizing single-cell RNA-seq data
 using various state-of-the-art methods. It supports standard log normalization, 
@@ -10,20 +13,9 @@ Normalization is a critical step in single-cell analysis to correct for technica
 variations such as sequencing depth differences between cells, enabling meaningful
 comparisons of gene expression across cells.
 
-Key features:
-    - Standard log normalization with customizable scale factor
-    - scran normalization for accurate size factor estimation
-    - sctransform variance-stabilizing transformation
-    - Centered log-ratio normalization for compositional data
-    - Support for both in-place and copy operations
-
-Upstream dependencies:
-    - SingleCellQC for quality control and filtering before normalization
-
-Downstream applications:
-    - FeatureSelection for finding highly variable genes
-    - DimensionalityReduction for PCA, UMAP, etc.
-    - GeneSetScoring for pathway and signature analysis
+Author: Your Name
+Date: Current Date
+Version: 0.1.0
 """
 
 import numpy as np
@@ -43,43 +35,18 @@ class Normalization:
     single-cell RNA-seq data, each addressing different aspects of technical variation.
     The choice of normalization method can significantly impact downstream analysis.
     
-    The Normalization class is typically used after quality control and before feature selection:
-    
-    - Upstream dependencies:
-      * SingleCellQC for data loading, QC metrics calculation, and filtering
-    
-    - Downstream applications:
-      * FeatureSelection for identifying highly variable genes
-      * DimensionalityReduction for dimensionality reduction
-      * GeneSetScoring for pathway activity scoring
-    
     Attributes:
         adata (AnnData): AnnData object containing the single-cell data.
-    
-    Examples:
-        >>> # After QC and filtering
-        >>> from sctools.normalization import Normalization
-        >>> norm = Normalization(adata)
-        >>> 
-        >>> # Standard log normalization
-        >>> norm.log_norm(scale_factor=10000)
-        >>> 
-        >>> # SCTransform (if R packages available)
-        >>> norm.sctransform()
-        >>> 
-        >>> # Get normalized data for downstream analysis
-        >>> normalized_adata = norm.adata
     """
     
     def __init__(self, adata: ad.AnnData):
         """
-        Initialize with AnnData object.
+        Initialize with AnnData object containing raw counts.
         
-        Parameters:
+        Args:
             adata (AnnData): AnnData object containing gene expression data.
-            
-        Examples:
-            >>> norm = Normalization(adata)
+                            This should be quality-controlled data, typically
+                            output from the SingleCellQC class.
         """
         self.adata = adata
         
@@ -90,55 +57,39 @@ class Normalization:
         """
         Perform standard log normalization (library size normalization).
         
-        This method normalizes cells by their total counts, multiplies by a scale factor,
-        and applies a log transformation. This is the most common normalization method
-        for single-cell RNA-seq data.
+        This function normalizes cells by total counts, multiplies by a scale factor,
+        and applies a log transformation. The normalized values are:
+        log(1 + (count * scale_factor / total_counts))
         
-        Parameters:
-            scale_factor : float
-                Scale factor for library size normalization. The counts are 
-                normalized to sum to this value for each cell before log transformation.
-            log_base : float
-                Base for the logarithm (2 for log2, 10 for log10, math.e for ln).
-            inplace : bool
-                If True, modify self.adata, else return a normalized copy.
-                
+        This is the most common normalization method for single-cell RNA-seq data.
+        
+        Args:
+            scale_factor: Scale factor for library size normalization
+            log_base: Base for the logarithm (2 for log2, 10 for log10, e for ln)
+            inplace: Whether to modify self.adata or return a new object
+            
         Returns:
-            Optional[AnnData]
-                Normalized AnnData object if inplace is False.
-                
-        Examples:
-            >>> norm = Normalization(adata)
-            >>> 
-            >>> # Default log normalization (log2 with scale factor 10000)
-            >>> norm.log_norm()
-            >>> 
-            >>> # Custom scale factor and log base
-            >>> norm.log_norm(scale_factor=1e6, log_base=10)
-            >>> 
-            >>> # Return a copy instead of modifying in place
-            >>> normalized_copy = norm.log_norm(inplace=False)
-        
-        Notes:
-            - This is equivalent to Seurat's NormalizeData() function with default parameters.
-            - The normalized values are: log(1 + (count * scale_factor / total_counts))
-            - Stores the normalization info in adata.uns['normalization']
+            If inplace=False, returns a normalized AnnData object
         """
+        # Work with either the original object or a copy
         adata = self.adata if inplace else self.adata.copy()
         
         print(f"Performing log normalization (scale_factor={scale_factor}, log_base={log_base})")
         
-        # Library size normalization and log transformation
+        # Library size normalization (divides counts by library size and multiplies by scale factor)
         sc.pp.normalize_total(adata, target_sum=scale_factor)
+        
+        # Log transformation (adds 1 to avoid log(0))
         sc.pp.log1p(adata, base=log_base)
         
-        # Store normalization parameters
+        # Store normalization parameters for reference
         adata.uns['normalization'] = {
             'method': 'log',
             'scale_factor': scale_factor,
             'log_base': log_base
         }
         
+        # Return or update in place
         if not inplace:
             return adata
         else:
@@ -151,60 +102,44 @@ class Normalization:
         """
         Perform normalization using the scran method (pooling-based size factors).
         
-        This method implements the scran normalization algorithm, which estimates
-        cell-specific size factors using pools of cells to reduce the impact of
-        zero counts. This approach is more robust than simple library size normalization
-        for datasets with high sparsity.
+        This function implements the scran normalization algorithm from Lun et al.,
+        which estimates cell-specific size factors using pools of cells to reduce
+        the impact of zero counts. It's more robust for sparse datasets.
         
-        Parameters:
-            n_pools : int
-                Number of pools for scran normalization.
-            min_mean : float
-                Minimum mean expression for genes to be used in normalization.
-            inplace : bool
-                If True, modify self.adata, else return a normalized copy.
-                
+        Args:
+            n_pools: Number of pools for scran normalization
+            min_mean: Minimum mean expression for genes to be used in normalization
+            inplace: Whether to modify self.adata or return a new object
+            
         Returns:
-            Optional[AnnData]
-                Normalized AnnData object if inplace is False.
-                
-        Examples:
-            >>> norm = Normalization(adata)
-            >>> 
-            >>> # Default scran normalization
-            >>> try:
-            ...     norm.scran_norm()
-            ... except ImportError:
-            ...     print("rpy2 not available, falling back to log normalization")
-            ...     norm.log_norm()
-        
-        Notes:
-            - Requires rpy2 and R packages (scran, BiocParallel, SingleCellExperiment).
-            - Falls back to standard log normalization if dependencies are not available.
-            - Stores cell-specific size factors in adata.obs['size_factors'].
-            - More robust than log_norm() for datasets with many zeros or high technical noise.
-            - Stores the normalization info in adata.uns['normalization']
+            If inplace=False, returns a normalized AnnData object
+            
+        Note:
+            Requires rpy2 and R packages (scran, BiocParallel, SingleCellExperiment).
+            Falls back to standard log normalization if dependencies are not available.
         """
+        # Work with either the original object or a copy
         adata = self.adata if inplace else self.adata.copy()
         
         print(f"Performing scran normalization (n_pools={n_pools})")
         
         try:
+            # Import R interface libraries
             import rpy2.robjects as ro
             from rpy2.robjects.packages import importr
             from rpy2.robjects import numpy2ri, pandas2ri
             from rpy2.robjects.conversion import localconverter
             
-            # Enable automatic conversion
+            # Enable automatic conversion between R and Python objects
             numpy2ri.activate()
             pandas2ri.activate()
             
-            # Import R packages
+            # Import necessary R packages
             importr('scran')
             importr('BiocParallel')
             importr('SingleCellExperiment')
             
-            # Convert to SingleCellExperiment
+            # Define R function for scran normalization
             ro.r('''
             normalize_scran <- function(counts, n_pools, min_mean) {
                 library(scran)
@@ -212,9 +147,10 @@ class Normalization:
                 library(SingleCellExperiment)
                 
                 # Create SingleCellExperiment
+                # Note: transpose because R uses genes as rows
                 sce <- SingleCellExperiment(list(counts=t(counts)))
                 
-                # Calculate size factors
+                # Calculate size factors using pooling
                 clusters <- quickCluster(sce, min.mean=min_mean, n.cores=1)
                 sce <- computeSumFactors(sce, clusters=clusters, min.mean=min_mean, n.cores=1)
                 
@@ -231,18 +167,21 @@ class Normalization:
             else:
                 counts = adata.X
                 
-            # Run scran normalization
+            # Run scran normalization in R
             normalize_scran = ro.globalenv['normalize_scran']
             size_factors = np.array(normalize_scran(counts, n_pools, min_mean))
             
             # Apply size factors
             adata.obs['size_factors'] = size_factors
-            adata.X = adata.X.copy()  # Make a copy of .X to avoid modifying the original
             
-            # Normalize by size factors and log transform
+            # Make a copy of the expression matrix to avoid modifying the original
+            adata.X = adata.X.copy()
+            
+            # Normalize each cell by its size factor
             for i in range(adata.n_obs):
                 adata.X[i] = adata.X[i] / size_factors[i]
                 
+            # Log transform the normalized values
             sc.pp.log1p(adata)
             
             # Store normalization parameters
@@ -252,16 +191,17 @@ class Normalization:
                 'min_mean': min_mean
             }
             
-            # Clean up
+            # Clean up R interface
             numpy2ri.deactivate()
             pandas2ri.deactivate()
             
         except ImportError:
-            print("rpy2 not available. Falling back to scanpy's normalize_total.")
+            # Fall back to standard normalization if R interface not available
+            print("rpy2 or required R packages not available. Falling back to scanpy's normalize_total.")
             sc.pp.normalize_total(adata)
             sc.pp.log1p(adata)
             
-            # Store normalization parameters
+            # Store normalization parameters with note
             adata.uns['normalization'] = {
                 'method': 'log',
                 'scale_factor': 1e4,
@@ -269,6 +209,7 @@ class Normalization:
                 'note': 'Fallback from scran due to missing dependencies'
             }
             
+        # Return or update in place
         if not inplace:
             return adata
         else:
@@ -281,56 +222,39 @@ class Normalization:
         """
         Perform normalization using the sctransform method.
         
-        This method implements the sctransform normalization approach, which models the
-        mean-variance relationship of gene expression data using regularized negative
-        binomial regression. It's particularly effective for handling technical noise
-        and improving the signal-to-noise ratio.
+        This function implements the sctransform normalization approach from Hafemeister & Satija,
+        which models the mean-variance relationship of gene expression data using
+        regularized negative binomial regression.
         
-        Parameters:
-            n_genes : int
-                Maximum number of genes to use (for large datasets).
-            n_cells : int
-                Maximum number of cells to use (for large datasets).
-            inplace : bool
-                If True, modify self.adata, else return a normalized copy.
-                
+        Args:
+            n_genes: Maximum number of genes to use (for large datasets)
+            n_cells: Maximum number of cells to use (for large datasets)
+            inplace: Whether to modify self.adata or return a new object
+            
         Returns:
-            Optional[AnnData]
-                Normalized AnnData object if inplace is False.
-                
-        Examples:
-            >>> norm = Normalization(adata)
-            >>> 
-            >>> # Default sctransform normalization
-            >>> try:
-            ...     norm.sctransform()
-            ... except ImportError:
-            ...     print("rpy2 or sctransform not available, falling back to log normalization")
-            ...     norm.log_norm()
-        
-        Notes:
-            - Requires rpy2 and R packages (sctransform, Matrix).
-            - Falls back to standard log normalization if dependencies are not available.
-            - For very large datasets, subsampling is performed (n_genes, n_cells parameters).
-            - Stores original counts in adata.layers['counts'].
-            - Considered state-of-the-art for many applications but more computationally intensive.
-            - Stores the normalization info in adata.uns['normalization']
+            If inplace=False, returns a normalized AnnData object
+            
+        Note:
+            Requires rpy2 and R packages (sctransform, Matrix).
+            Falls back to standard log normalization if dependencies are not available.
         """
+        # Work with either the original object or a copy
         adata = self.adata if inplace else self.adata.copy()
         
         print(f"Performing sctransform normalization")
         
         try:
+            # Import R interface libraries
             import rpy2.robjects as ro
             from rpy2.robjects.packages import importr
             from rpy2.robjects import numpy2ri, pandas2ri
             from rpy2.robjects.conversion import localconverter
             
-            # Enable automatic conversion
+            # Enable automatic conversion between R and Python objects
             numpy2ri.activate()
             pandas2ri.activate()
             
-            # Import R packages
+            # Import necessary R packages
             importr('sctransform')
             importr('Matrix')
             
@@ -371,6 +295,7 @@ class Normalization:
             if sparse.issparse(adata.X):
                 counts = adata.X.copy()
             else:
+                # Convert to sparse matrix for efficiency
                 counts = sparse.csr_matrix(adata.X)
                 
             # Run sctransform
@@ -380,8 +305,10 @@ class Normalization:
             # Extract results
             corrected_counts = np.array(result[1])
             
-            # Store original and normalized data
+            # Store original counts in a layer
             adata.layers['counts'] = adata.X.copy()
+            
+            # Replace expression matrix with corrected counts
             adata.X = corrected_counts
             
             # Store normalization parameters
@@ -391,16 +318,17 @@ class Normalization:
                 'n_cells': n_cells
             }
             
-            # Clean up
+            # Clean up R interface
             numpy2ri.deactivate()
             pandas2ri.deactivate()
             
         except ImportError:
+            # Fall back to standard normalization if R interface not available
             print("rpy2 or sctransform not available. Falling back to scanpy's normalize_total.")
             sc.pp.normalize_total(adata)
             sc.pp.log1p(adata)
             
-            # Store normalization parameters
+            # Store normalization parameters with note
             adata.uns['normalization'] = {
                 'method': 'log',
                 'scale_factor': 1e4,
@@ -408,6 +336,7 @@ class Normalization:
                 'note': 'Fallback from sctransform due to missing dependencies'
             }
             
+        # Return or update in place
         if not inplace:
             return adata
         else:
@@ -419,36 +348,20 @@ class Normalization:
         """
         Perform centered log-ratio normalization.
         
-        This method implements the centered log-ratio (CLR) normalization, which
-        is particularly useful for compositional data, such as scRNA-seq where the
-        total mRNA content per cell is largely arbitrary. It normalizes each value
+        This function implements the centered log-ratio (CLR) normalization, which
+        is particularly useful for compositional data. It normalizes each value
         by the geometric mean of all values for that cell.
         
-        Parameters:
-            eps : float
-                Pseudo-count to add to avoid log(0).
-            inplace : bool
-                If True, modify self.adata, else return a normalized copy.
-                
-        Returns:
-            Optional[AnnData]
-                Normalized AnnData object if inplace is False.
-                
-        Examples:
-            >>> norm = Normalization(adata)
-            >>> 
-            >>> # Perform CLR normalization
-            >>> norm.clr_norm()
-            >>> 
-            >>> # CLR with custom pseudo-count
-            >>> norm.clr_norm(eps=0.5)
+        Formula: log(value / geometric_mean_of_all_values_in_cell)
         
-        Notes:
-            - Useful for compositional data (e.g., CITE-seq ADT data).
-            - The formula is: log(value / geometric_mean_of_all_values_in_cell)
-            - CLR makes the distribution of each cell have a mean of zero.
-            - Stores the normalization info in adata.uns['normalization']
+        Args:
+            eps: Pseudo-count to add to avoid log(0)
+            inplace: Whether to modify self.adata or return a new object
+            
+        Returns:
+            If inplace=False, returns a normalized AnnData object
         """
+        # Work with either the original object or a copy
         adata = self.adata if inplace else self.adata.copy()
         
         print(f"Performing centered log-ratio normalization")
@@ -459,16 +372,18 @@ class Normalization:
         else:
             X = adata.X.copy()
             
-        # Add pseudocount
+        # Add pseudocount to avoid log(0)
         X += eps
         
-        # Calculate geometric mean for each cell
+        # Calculate geometric mean for each cell (mean of log values, then exponentiate)
         geo_means = np.exp(np.mean(np.log(X), axis=1))
         
         # Apply CLR normalization
         for i in range(X.shape[0]):
+            # Divide by the geometric mean, then take log
             X[i] = np.log(X[i] / geo_means[i])
             
+        # Update the expression matrix
         adata.X = X
         
         # Store normalization parameters
@@ -477,6 +392,7 @@ class Normalization:
             'eps': eps
         }
         
+        # Return or update in place
         if not inplace:
             return adata
         else:
@@ -488,35 +404,20 @@ class Normalization:
         """
         Run normalization using the specified method.
         
-        This is a convenience method that runs the appropriate normalization
+        This is a convenience function that runs the appropriate normalization
         function based on the specified method name.
         
-        Parameters:
-            method : str
-                Normalization method ('log', 'scran', 'sctransform', 'clr').
-            **kwargs : dict
-                Additional parameters for the specific normalization method.
-                
+        Args:
+            method: Normalization method ('log', 'scran', 'sctransform', 'clr')
+            **kwargs: Additional parameters for the specific normalization method
+            
         Returns:
-            AnnData
-                Normalized AnnData object.
-                
+            The normalized AnnData object (self.adata)
+            
         Raises:
-            ValueError: If an unsupported normalization method is specified.
-                
-        Examples:
-            >>> norm = Normalization(adata)
-            >>> 
-            >>> # Log normalization with custom parameters
-            >>> norm.run_normalization('log', scale_factor=1e6)
-            >>> 
-            >>> # SCTransform normalization
-            >>> norm.run_normalization('sctransform', n_genes=2000)
-        
-        Notes:
-            - This is a convenience wrapper around the specific normalization methods.
-            - The method parameter is case-insensitive.
+            ValueError: If an unsupported normalization method is specified
         """
+        # Call the appropriate normalization method based on the method name
         if method.lower() == 'log':
             self.log_norm(**kwargs)
         elif method.lower() == 'scran':
