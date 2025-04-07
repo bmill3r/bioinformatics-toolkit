@@ -280,4 +280,42 @@ class FeatureSelection:
         print("Selecting marker genes")
         
         # Work with either the original object or a copy
-        adata = self.adata if inplace else
+        adata = self.adata if inplace else self.adata.copy()
+        
+        # Get all marker genes
+        all_markers = []
+        for category, gene_list in markers.items():
+            # Find which marker genes are in the data
+            present_genes = [gene for gene in gene_list if gene in adata.var_names]
+            print(f"Category {category}: {len(present_genes)}/{len(gene_list)} genes found")
+            all_markers.extend(present_genes)
+            
+        # Remove duplicates
+        all_markers = list(set(all_markers))
+        
+        # Include highly variable genes if requested
+        if include_highly_variable:
+            if 'highly_variable' not in adata.var.columns:
+                raise ValueError("No highly variable genes found. Please run find_highly_variable_genes first.")
+            
+            hvg = adata.var_names[adata.var.highly_variable].tolist()
+            all_genes = list(set(all_markers + hvg))
+            print(f"Selected {len(all_markers)} marker genes and {len(hvg)} highly variable genes "
+                 f"({len(all_genes)} unique genes total)")
+        else:
+            all_genes = all_markers
+            print(f"Selected {len(all_genes)} marker genes")
+            
+        # Subset to selected genes
+        adata = adata[:, all_genes]
+        
+        # Add marker information to var
+        for category, gene_list in markers.items():
+            # Create a boolean column indicating which genes are markers for this category
+            adata.var[f'marker_{category}'] = [g in gene_list for g in adata.var_names]
+            
+        # Update the object
+        if inplace:
+            self.adata = adata
+        else:
+            return adata
