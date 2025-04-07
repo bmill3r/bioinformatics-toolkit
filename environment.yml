@@ -1,0 +1,99 @@
+name: sctools-py
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  # Python core
+  - python=3.10
+  - pip>=22.0.0
+  - ipython
+  - jupyter
+  - jupyterlab
+  - ipywidgets
+  
+  # Scientific computing
+  - numpy>=1.22.0
+  - scipy>=1.8.0
+  - pandas>=1.4.0
+  - scikit-learn>=1.0.0
+  - statsmodels
+  - numba
+  
+  # Visualization
+  - matplotlib>=3.5.0
+  - seaborn>=0.11.0
+  - plotly>=5.5.0
+  - bokeh>=2.4.0
+  - colorcet
+  - datashader
+  - holoviews
+  
+  # Single-cell analysis
+  - scanpy>=1.9.0
+  - anndata>=0.8.0
+  - leidenalg
+  - umap-learn
+  - pynndescent
+  - louvain
+  - igraph
+  
+  # File formats & data management
+  - h5py
+  - zarr
+  - tables
+  - pyarrow
+  - boto3
+  - s3fs
+  - gcsfs
+  - pytables
+  - pyarrow
+  
+  # Progress tracking & utilities
+  - tqdm
+  - joblib
+  
+  # R interface
+  - rpy2
+  
+  # AWS CLI
+  - awscli
+  
+  # Spatial analysis
+  - pysal
+  
+  # Pip-installed packages
+  - pip:
+    # Latest versions of single-cell packages
+    - scanpy-scripts
+    - velocyto
+    - scvi-tools>=0.16.0
+    - squidpy>=1.2.0
+    - napari[all]
+    - loompy>=3.0.0
+    
+    # Spatial analysis
+    - spatialde
+    - spatialdata-io
+    
+    # Utilities for bioinformatics
+    - gseapy
+    - mygene
+    - MulticoreTSNE
+    - harmonypy
+    - fa2
+    
+    # Additional visualizations
+    - celluloid  # For animations
+    - adjustText  # For better text placement in plots
+    
+    # Interface with R packages
+    - anndata2ri
+    
+    # AWS support
+    - boto3
+    - s3fs
+    
+    # GPU support (if available)
+    - cupy-cuda11x; platform_system != "Darwin"
+    - rapids-core-cuda11x; platform_system != "Darwin"
