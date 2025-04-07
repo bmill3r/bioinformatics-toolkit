@@ -12,6 +12,24 @@ and analyzing negative control probes.
 Spatial transcriptomics combines gene expression measurements with spatial information,
 enabling the study of tissue organization and cellular interactions in their native context.
 
+Key features:
+- Visualization of gene expression in spatial coordinates
+- Creation of spatial bins for aggregating data
+- Calculation of spatial autocorrelation (Moran's I)
+- Analysis of negative control probes
+- Support for various spatial transcriptomics technologies
+
+Upstream dependencies:
+- SingleCellQC for quality control and filtering
+- Normalization for data normalization
+- DimensionalityReduction for dimensional embeddings
+
+Downstream applications:
+- Spatial domain identification
+- Cellular neighborhood analysis
+- Spatial differential expression
+- Tissue architecture analysis
+
 Author: Your Name
 Date: Current Date
 Version: 0.1.0
@@ -80,13 +98,13 @@ class SpatialAnalysis:
             raise ValueError("Spatial coordinates not found in adata.obsm or adata.obs")
             
     def plot_spatial_gene_expression(self, genes, 
-                                  ncols: int = 4,
-                                  figsize: Tuple[int, int] = None,
-                                  cmap: str = 'viridis',
-                                  size: float = 10.0,
-                                  title_fontsize: int = 10,
-                                  show_colorbar: bool = True,
-                                  save_path: Optional[str] = None) -> plt.Figure:
+                                   ncols: int = 4,
+                                   figsize: Tuple[int, int] = None,
+                                   cmap: str = 'viridis',
+                                   size: float = 10.0,
+                                   title_fontsize: int = 10,
+                                   show_colorbar: bool = True,
+                                   save_path: Optional[str] = None) -> plt.Figure:
         """
         Plot spatial expression of multiple genes.
         
@@ -478,3 +496,165 @@ class SpatialAnalysis:
         stats_df = pd.DataFrame(results)
         
         return stats_df
+    
+    def find_spatial_domains(self,
+                           n_clusters: int = 10,
+                           use_genes: Optional[List[str]] = None,
+                           method: str = 'leiden',
+                           resolution: float = 1.0,
+                           n_neighbors: int = 15,
+                           random_state: int = 42) -> None:
+        """
+        Identify spatial domains based on gene expression patterns.
+        
+        This function clusters cells or spots based on their gene expression profiles,
+        taking into account their spatial relationships. It can identify spatially
+        coherent regions with similar expression patterns.
+        
+        Args:
+            n_clusters: Target number of clusters (exact for kmeans, approximate for leiden)
+            use_genes: Specific genes to use for clustering (if None, all genes are used)
+            method: Clustering method ('kmeans', 'leiden', 'louvain')
+            resolution: Resolution parameter for community detection methods
+            n_neighbors: Number of neighbors for graph construction
+            random_state: Random seed for reproducibility
+            
+        Raises:
+            ValueError: If an unsupported clustering method is specified
+            
+        Note:
+            Results are stored in adata.obs['spatial_domains'] and can be visualized
+            using plot_spatial_gene_expression().
+        """
+        print(f"Finding spatial domains using {method} clustering")
+        
+        # Create a working copy of the AnnData object
+        adata = self.adata.copy()
+        
+        # Subset to selected genes if specified
+        if use_genes is not None:
+            valid_genes = [gene for gene in use_genes if gene in adata.var_names]
+            if len(valid_genes) == 0:
+                raise ValueError("None of the specified genes were found in the dataset")
+            adata = adata[:, valid_genes]
+            
+        # Create nearest neighbor graph
+        sc.pp.neighbors(
+            adata,
+            n_neighbors=n_neighbors,
+            random_state=random_state,
+            use_rep='X'  # Use gene expression, not PCA or other embedding
+        )
+        
+        # Perform clustering based on specified method
+        if method == 'kmeans':
+            # K-means clustering
+            from sklearn.cluster import KMeans
+            
+            # Extract expression matrix
+            X = adata.X
+            if sparse.issparse(X):
+                X = X.toarray()
+                
+            # Run k-means
+            kmeans = KMeans(
+                n_clusters=n_clusters,
+                random_state=random_state,
+                n_init=10
+            )
+            clusters = kmeans.fit_predict(X)
+            
+            # Add results to original AnnData
+            self.adata.obs['spatial_domains'] = pd.Categorical(
+                [str(x) for x in clusters]
+            )
+            
+        elif method == 'leiden':
+            # Leiden community detection
+            sc.tl.leiden(
+                adata,
+                resolution=resolution,
+                random_state=random_state
+            )
+            
+            # Add results to original AnnData
+            self.adata.obs['spatial_domains'] = adata.obs['leiden']
+            
+        elif method == 'louvain':
+            # Louvain community detection
+            sc.tl.louvain(
+                adata,
+                resolution=resolution,
+                random_state=random_state
+            )
+            
+            # Add results to original AnnData
+            self.adata.obs['spatial_domains'] = adata.obs['louvain']
+            
+        else:
+            raise ValueError(f"Unsupported clustering method: {method}")
+            
+        n_domains = len(self.adata.obs['spatial_domains'].cat.categories)
+        print(f"Identified {n_domains} spatial domains")
+        
+    def calculate_gene_spatial_autocorrelation(self, gene: str) -> Tuple[float, float, float]:
+        """
+        Calculate spatial autocorrelation for a single gene.
+        
+        This function computes Moran's I statistic for a specific gene, including
+        the p-value and z-score to assess statistical significance.
+        
+        Args:
+            gene: Name of the gene to analyze
+            
+        Returns:
+            Tuple containing (Moran's I, p-value, z-score)
+            
+        Raises:
+            ValueError: If the gene is not found in the dataset
+            
+        Note:
+            This is a convenience function for analyzing individual genes.
+            For batch processing, use calculate_moran_i().
+        """
+        # Check if gene exists
+        if gene not in self.adata.var_names:
+            raise ValueError(f"Gene '{gene}' not found in dataset")
+            
+        # Calculate Moran's I for the single gene
+        results = self.calculate_moran_i(genes=[gene])
+        
+        # Extract results
+        morans_i = results.loc[0, 'morans_i']
+        p_value = results.loc[0, 'p_value']
+        z_score = results.loc[0, 'z_score']
+        
+        return morans_i, p_value, z_score
+    
+    def find_spatially_variable_genes(self, n_top_genes: int = 100) -> pd.DataFrame:
+        """
+        Identify genes with significant spatial variability.
+        
+        This function calculates Moran's I for all genes and returns those
+        with the strongest spatial patterns.
+        
+        Args:
+            n_top_genes: Number of top genes to return
+            
+        Returns:
+            DataFrame with spatially variable genes and their statistics
+            
+        Note:
+            This is a wrapper around calculate_moran_i() that returns the top
+            spatially variable genes. It is computationally intensive for
+            datasets with many genes.
+        """
+        print(f"Finding top {n_top_genes} spatially variable genes")
+        
+        # Calculate Moran's I for all genes
+        moran_results = self.calculate_moran_i()
+        
+        # Get top genes by Moran's I value
+        top_genes = moran_results.head(n_top_genes)
+        
+        return top_genes
