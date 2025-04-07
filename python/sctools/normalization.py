@@ -13,6 +13,21 @@ Normalization is a critical step in single-cell analysis to correct for technica
 variations such as sequencing depth differences between cells, enabling meaningful
 comparisons of gene expression across cells.
 
+Key features:
+- Standard log normalization with customizable scale factor
+- scran normalization for accurate size factor estimation
+- sctransform variance-stabilizing transformation
+- Centered log-ratio normalization for compositional data
+- Support for both in-place and copy operations
+
+Upstream dependencies:
+- SingleCellQC for quality control and filtering before normalization
+
+Downstream applications:
+- FeatureSelection for finding highly variable genes
+- DimensionalityReduction for PCA, UMAP, etc.
+- GeneSetScoring for pathway and signature analysis
+
 Author: Your Name
 Date: Current Date
 Version: 0.1.0
@@ -151,8 +166,8 @@ class Normalization:
                 sce <- SingleCellExperiment(list(counts=t(counts)))
                 
                 # Calculate size factors using pooling
-                clusters <- quickCluster(sce, min.mean=min_mean, n.cores=1)
-                sce <- computeSumFactors(sce, clusters=clusters, min.mean=min_mean, n.cores=1)
+                clusters <- quickCluster(sce, min.mean=min.mean, n.cores=1)
+                sce <- computeSumFactors(sce, clusters=clusters, min.mean=min.mean, n.cores=1)
                 
                 # Get size factors
                 size_factors <- sizeFactors(sce)
@@ -179,7 +194,12 @@ class Normalization:
             
             # Normalize each cell by its size factor
             for i in range(adata.n_obs):
-                adata.X[i] = adata.X[i] / size_factors[i]
+                if sparse.issparse(adata.X):
+                    # For sparse matrix
+                    adata.X[i] = adata.X[i].multiply(1.0 / size_factors[i])
+                else:
+                    # For dense array
+                    adata.X[i] = adata.X[i] / size_factors[i]
                 
             # Log transform the normalized values
             sc.pp.log1p(adata)
