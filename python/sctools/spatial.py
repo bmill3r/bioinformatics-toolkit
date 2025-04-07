@@ -1,5 +1,8 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 """
-Spatial Transcriptomics Analysis Module
+SpatialAnalysis: Spatial Transcriptomics Analysis
 
 This module provides the SpatialAnalysis class for analyzing spatial transcriptomics data.
 It includes functionality for visualizing gene expression in spatial coordinates,
@@ -9,23 +12,9 @@ and analyzing negative control probes.
 Spatial transcriptomics combines gene expression measurements with spatial information,
 enabling the study of tissue organization and cellular interactions in their native context.
 
-Key features:
-    - Visualization of gene expression in spatial coordinates
-    - Creation of spatial bins for aggregating data
-    - Calculation of spatial autocorrelation (Moran's I)
-    - Analysis of negative control probes
-    - Support for various spatial transcriptomics technologies
-
-Upstream dependencies:
-    - SingleCellQC for quality control and filtering
-    - Normalization for data normalization
-    - DimensionalityReduction for dimensional embeddings
-
-Downstream applications:
-    - Spatial domain identification
-    - Cellular neighborhood analysis
-    - Spatial differential expression
-    - Tissue architecture analysis
+Author: Your Name
+Date: Current Date
+Version: 0.1.0
 """
 
 import numpy as np
@@ -48,40 +37,12 @@ class SpatialAnalysis:
     of gene expression in spatial coordinates, creation of spatial bins, calculation of
     spatial statistics, and analysis of negative control probes.
     
-    The SpatialAnalysis class is typically used after quality control, normalization, and
-    other preprocessing steps:
-    
-    - Upstream dependencies:
-      * SingleCellQC for quality control and filtering
-      * Normalization for data normalization
-      * DimensionalityReduction for embedding information (optional)
-    
-    - Downstream applications:
-      * Spatial domain identification with clustering
-      * Cellular neighborhood analysis
-      * Spatial differential expression
-      * Tissue architecture analysis
-    
     Attributes:
         adata (AnnData): AnnData object containing the spatial transcriptomics data.
         coordinates (np.ndarray): Spatial coordinates of spots or cells.
         spatial_key (str): Key in adata.obsm where spatial coordinates are stored.
         x_coord (str): Name of x-coordinate in obs if not using obsm[spatial_key].
         y_coord (str): Name of y-coordinate in obs if not using obsm[spatial_key].
-    
-    Examples:
-        >>> # After QC and normalization
-        >>> from sctools.spatial import SpatialAnalysis
-        >>> spatial = SpatialAnalysis(adata, spatial_key='spatial')
-        >>> 
-        >>> # Visualize gene expression in space
-        >>> spatial.plot_spatial_gene_expression(['GAPDH', 'CD3E'])
-        >>> 
-        >>> # Create spatial bins
-        >>> binned_adata = spatial.create_spatial_grid(bin_size=100)
-        >>> 
-        >>> # Calculate spatial autocorrelation
-        >>> moran_results = spatial.calculate_moran_i(genes=['GAPDH', 'CD3E'])
     """
     
     def __init__(self, adata: ad.AnnData, 
@@ -91,7 +52,7 @@ class SpatialAnalysis:
         """
         Initialize with AnnData object and spatial coordinates.
         
-        Parameters:
+        Args:
             adata (AnnData): AnnData object with spatial information.
             spatial_key (str): Key in adata.obsm where spatial coordinates are stored.
             x_coord (str): Name of x-coordinate in obs if not using obsm[spatial_key].
@@ -99,32 +60,23 @@ class SpatialAnalysis:
             
         Raises:
             ValueError: If spatial coordinates cannot be found.
-            
-        Examples:
-            >>> # Initialize with 10X Visium data (coordinates in obsm['spatial'])
-            >>> spatial = SpatialAnalysis(adata, spatial_key='spatial')
-            >>> 
-            >>> # Initialize with coordinates in obs columns
-            >>> spatial = SpatialAnalysis(adata, x_coord='x_position', y_coord='y_position')
-        
-        Notes:
-            - For 10X Visium data, coordinates are typically in adata.obsm['spatial']
-            - For other technologies, coordinates might be in obs columns or other obsm keys
-            - The class tries to infer coordinates from either obsm[spatial_key] or obs[x/y_coord]
         """
         self.adata = adata
         self.spatial_key = spatial_key
         self.x_coord = x_coord
         self.y_coord = y_coord
         
-        # Extract spatial coordinates
+        # Extract spatial coordinates from the appropriate location
         if spatial_key in adata.obsm:
+            # Coordinates are in obsm (e.g., 10X Visium data)
             self.coordinates = adata.obsm[spatial_key]
             print(f"Using spatial coordinates from adata.obsm['{spatial_key}']")
         elif x_coord in adata.obs and y_coord in adata.obs:
+            # Coordinates are in separate obs columns
             self.coordinates = np.vstack([adata.obs[x_coord].values, adata.obs[y_coord].values]).T
             print(f"Using spatial coordinates from adata.obs['{x_coord}'] and adata.obs['{y_coord}']")
         else:
+            # Cannot find coordinates
             raise ValueError("Spatial coordinates not found in adata.obsm or adata.obs")
             
     def plot_spatial_gene_expression(self, genes, 
@@ -138,60 +90,37 @@ class SpatialAnalysis:
         """
         Plot spatial expression of multiple genes.
         
-        This method creates scatter plots of cells/spots in their spatial coordinates,
+        This function creates scatter plots of cells/spots in their spatial coordinates,
         colored by gene expression or metadata values.
         
-        Parameters:
-            genes (List[str] or str): Gene or list of genes to plot.
-            ncols (int): Number of columns in the plot grid.
-            figsize (Optional[Tuple[int, int]]): Figure size. If None, it's calculated based on the number of genes.
-            cmap (str): Colormap for gene expression.
-            size (float): Size of the points in the scatter plot.
-            title_fontsize (int): Font size for subplot titles.
-            show_colorbar (bool): Whether to show the colorbar.
-            save_path (Optional[str]): Path to save the figure. If None, the figure is displayed instead.
+        Args:
+            genes: Gene or list of genes to plot (can also be metadata columns)
+            ncols: Number of columns in the plot grid
+            figsize: Figure size (auto-calculated based on genes if None)
+            cmap: Colormap for gene expression
+            size: Size of the points in the scatter plot
+            title_fontsize: Font size for subplot titles
+            show_colorbar: Whether to show the colorbar
+            save_path: Path to save the figure (None displays the figure instead)
             
         Returns:
-            plt.Figure: The matplotlib figure object.
+            matplotlib.figure.Figure: The matplotlib figure object
             
         Raises:
-            ValueError: If none of the specified genes are found in the dataset.
-            
-        Examples:
-            >>> spatial = SpatialAnalysis(adata)
-            >>> 
-            >>> # Plot a single gene
-            >>> spatial.plot_spatial_gene_expression('GAPDH')
-            >>> 
-            >>> # Plot multiple genes
-            >>> spatial.plot_spatial_gene_expression(
-            ...     ['GAPDH', 'CD3E', 'CD8A'], 
-            ...     ncols=3, 
-            ...     cmap='plasma'
-            ... )
-            >>> 
-            >>> # Plot QC metrics in space
-            >>> spatial.plot_spatial_gene_expression(
-            ...     ['n_genes_by_counts', 'total_counts', 'percent_mito'],
-            ...     save_path='spatial_qc.png'
-            ... )
-        
-        Notes:
-            - Can plot both genes (from var_names) and metadata (from obs columns)
-            - Useful for visualizing expression patterns, QC metrics, and cluster assignments
-            - When plotting multiple genes, a grid of subplots is created
-            - Returns the figure object for further customization
+            ValueError: If none of the specified genes are found in the dataset
         """
-        # Convert single gene to list
+        # Convert single gene to list for consistent processing
         if isinstance(genes, str):
             genes = [genes]
             
-        # Make sure all genes exist in the dataset
+        # Validate which genes/metrics exist in the dataset
         valid_genes = []
         for gene in genes:
             if gene in self.adata.var_names:
+                # Gene exists in var_names (expression data)
                 valid_genes.append(gene)
             elif gene in self.adata.obs.columns:
+                # Feature exists in obs (metadata)
                 valid_genes.append(gene)
             else:
                 print(f"Warning: '{gene}' not found in var_names or obs columns")
@@ -203,7 +132,7 @@ class SpatialAnalysis:
             
         # Calculate grid dimensions
         n_genes = len(genes)
-        nrows = (n_genes + ncols - 1) // ncols
+        nrows = (n_genes + ncols - 1) // ncols  # Ceiling division
         
         # Calculate figure size if not provided
         if figsize is None:
@@ -215,21 +144,23 @@ class SpatialAnalysis:
         # Extract coordinates
         x, y = self.coordinates[:, 0], self.coordinates[:, 1]
         
-        # Plot each gene
+        # Plot each gene/feature
         for i, gene in enumerate(genes):
             row, col = i // ncols, i % ncols
             ax = axs[row, col]
             
-            # Get gene expression or metadata
+            # Get gene expression or metadata values
             if gene in self.adata.var_names:
+                # Feature is a gene
                 gene_expr = self.adata[:, gene].X
                 if sparse.issparse(gene_expr):
                     gene_expr = gene_expr.toarray().flatten()
                 values = gene_expr
-            else:  # Assume it's a metadata column
+            else:  # Feature is in metadata
                 values = self.adata.obs[gene].values
+                # Handle categorical data
                 if values.dtype == 'object' or pd.api.types.is_categorical_dtype(values):
-                    # For categorical data, convert to numeric representation
+                    # Convert categorical to numeric for coloring
                     unique_values = sorted(set(values))
                     value_map = {val: i for i, val in enumerate(unique_values)}
                     values = np.array([value_map[v] for v in values])
@@ -237,12 +168,13 @@ class SpatialAnalysis:
             # Create the scatter plot
             scatter = ax.scatter(x, y, c=values, cmap=cmap, s=size, alpha=0.8)
             
-            # Add title and colorbar
+            # Add title and axis labels
             ax.set_title(gene, fontsize=title_fontsize)
             ax.set_xlabel('X coordinate')
             ax.set_ylabel('Y coordinate')
-            ax.set_aspect('equal')
+            ax.set_aspect('equal')  # Maintain aspect ratio
             
+            # Add colorbar if requested
             if show_colorbar:
                 plt.colorbar(scatter, ax=ax, shrink=0.7)
                 
@@ -253,6 +185,7 @@ class SpatialAnalysis:
             
         plt.tight_layout()
         
+        # Save figure if path provided
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
             print(f"Saved spatial gene expression plot to {save_path}")
@@ -266,46 +199,22 @@ class SpatialAnalysis:
         """
         Create a grid of spatial bins and aggregate gene expression within each bin.
         
-        This method divides the spatial domain into square bins of specified size
-        and aggregates gene expression within each bin. This can be useful for 
-        reducing noise, working at different spatial scales, or integrating with
-        other spatial data.
+        This function divides the spatial area into square bins of the specified size
+        and aggregates gene expression values within each bin. This is useful for
+        reducing noise, analyzing at different spatial scales, or matching resolution
+        across different datasets.
         
-        Parameters:
-            bin_size (float): Size of the square bins.
-            aggr_func (str): Aggregation function ('mean', 'sum', 'median', 'max').
-            min_cells (int): Minimum number of cells required in a bin to keep it.
-            genes (Optional[List[str]]): Specific genes to include. If None, all genes are used.
+        Args:
+            bin_size: Size of the square bins
+            aggr_func: Aggregation function ('mean', 'sum', 'median', 'max')
+            min_cells: Minimum number of cells required in a bin to keep it
+            genes: Specific genes to include (if None, all genes are used)
             
         Returns:
-            AnnData: AnnData object containing the binned data.
+            AnnData object containing the binned data
             
-        Examples:
-            >>> spatial = SpatialAnalysis(adata)
-            >>> 
-            >>> # Create bins with default parameters (mean aggregation)
-            >>> binned_adata = spatial.create_spatial_grid(bin_size=100)
-            >>> 
-            >>> # Create bins with sum aggregation and minimum cell requirement
-            >>> binned_adata = spatial.create_spatial_grid(
-            ...     bin_size=200,
-            ...     aggr_func='sum',
-            ...     min_cells=5
-            ... )
-            >>> 
-            >>> # Bin only specific genes
-            >>> marker_genes = ['CD3E', 'CD8A', 'FOXP3', 'MS4A1']
-            >>> binned_adata = spatial.create_spatial_grid(
-            ...     bin_size=100,
-            ...     genes=marker_genes
-            ... )
-        
-        Notes:
-            - Binning reduces spatial resolution but can improve signal-to-noise ratio
-            - Useful for matching resolution with other spatial datasets
-            - The binned AnnData has one observation per bin with coordinates set to bin centers
-            - The number of cells per bin is stored in adata.obs['n_cells']
-            - Empty or sparse bins (below min_cells) are filtered out
+        Raises:
+            ValueError: If specified genes are not found in the dataset
         """
         print(f"Creating spatial grid with bin_size={bin_size}, aggr_func={aggr_func}")
         
@@ -328,14 +237,17 @@ class SpatialAnalysis:
         # Get unique bins
         unique_bins = np.unique(bin_indices)
         
-        # Extract raw expression matrix
+        # Extract gene expression matrix
         if genes is None:
+            # Use all genes
             genes = self.adata.var_names.tolist()
         else:
+            # Filter to genes that exist in the dataset
             genes = [gene for gene in genes if gene in self.adata.var_names]
             if len(genes) == 0:
                 raise ValueError("None of the specified genes were found in the dataset")
                 
+        # Extract expression for selected genes
         X = self.adata[:, genes].X
         if sparse.issparse(X):
             X = X.toarray()
@@ -349,7 +261,7 @@ class SpatialAnalysis:
         
         # Aggregate data within bins
         for i, bin_idx in enumerate(unique_bins):
-            # Cells in this bin
+            # Find cells in this bin
             cells_in_bin = np.where(bin_indices == bin_idx)[0]
             bin_counts[i] = len(cells_in_bin)
             
@@ -357,7 +269,7 @@ class SpatialAnalysis:
             if bin_counts[i] < min_cells:
                 continue
                 
-            # Calculate aggregated expression
+            # Calculate aggregated expression using the specified function
             if aggr_func == 'mean':
                 binned_X[i] = np.mean(X[cells_in_bin], axis=0)
             elif aggr_func == 'sum':
@@ -383,7 +295,7 @@ class SpatialAnalysis:
         # Create binned AnnData object
         binned_adata = ad.AnnData(X=binned_X)
         
-        # Set var names
+        # Set var names (genes)
         binned_adata.var_names = genes
         
         # Set obs names and metadata
@@ -407,46 +319,28 @@ class SpatialAnalysis:
         """
         Calculate Moran's I spatial autocorrelation for each gene.
         
-        Moran's I measures the spatial autocorrelation of gene expression, identifying
-        genes with significant spatial patterning. Values range from -1 (dispersed) to 
-        1 (clustered), with 0 indicating random distribution.
+        Moran's I measures the spatial autocorrelation of gene expression,
+        identifying genes with significant spatial patterning. Values range from
+        -1 (dispersed) to 1 (clustered), with 0 indicating random distribution.
         
-        Parameters:
-            genes (Optional[List[str]]): Specific genes to analyze. If None, all genes are analyzed.
-            max_genes (int): Maximum number of genes to analyze (to prevent excessive computation).
-            n_jobs (int): Number of parallel jobs for computation.
+        Args:
+            genes: Specific genes to analyze (if None, all genes or a random subset are used)
+            max_genes: Maximum number of genes to analyze (to limit computation)
+            n_jobs: Number of parallel jobs for computation
             
         Returns:
-            pd.DataFrame: DataFrame with Moran's I statistics for each gene.
+            DataFrame with Moran's I statistics for each gene
             
         Raises:
-            ImportError: If pysal and joblib are not installed.
-            ValueError: If no valid genes are found.
+            ImportError: If pysal and joblib are not installed
+            ValueError: If no valid genes are found
             
-        Examples:
-            >>> spatial = SpatialAnalysis(adata)
-            >>> 
-            >>> # Calculate Moran's I for all genes
-            >>> moran_results = spatial.calculate_moran_i()
-            >>> 
-            >>> # Calculate for specific genes
-            >>> marker_genes = ['CD3E', 'CD8A', 'FOXP3', 'MS4A1']
-            >>> moran_results = spatial.calculate_moran_i(genes=marker_genes)
-            >>> 
-            >>> # Top spatially autocorrelated genes
-            >>> top_genes = moran_results.sort_values('morans_i', ascending=False).head(10)
-            >>> print(top_genes)
-        
-        Notes:
-            - Requires pysal and joblib packages: pip install pysal joblib
-            - High positive values indicate spatial clustering (e.g., tissue domains)
-            - Values near zero indicate random spatial distribution
-            - Negative values indicate spatial dispersion (rare in biology)
-            - Computationally intensive for large datasets; max_genes limits computation
-            - The p-value indicates statistical significance of the spatial pattern
-            - Results are sorted by Moran's I value (highest to lowest)
+        Note:
+            This function requires the pysal and joblib packages. Install with:
+            pip install pysal joblib
         """
         try:
+            # Import spatial analysis libraries
             from pysal.explore import esda
             from pysal.lib import weights
             from joblib import Parallel, delayed
@@ -455,18 +349,20 @@ class SpatialAnalysis:
         
         print("Calculating Moran's I spatial autocorrelation")
         
-        # Extract coordinates
+        # Extract spatial coordinates
         coords = self.coordinates
         
         # Create spatial weights matrix (k-nearest neighbors)
-        knn = 8  # Number of nearest neighbors
+        knn = 8  # Number of nearest neighbors to consider
         w = weights.KNN(coords, k=knn)
         w.transform = 'r'  # Row-standardized weights
         
-        # Filter genes to analyze
+        # Determine which genes to analyze
         if genes is None:
+            # Use all genes (or a random subset if too many)
             genes = self.adata.var_names.tolist()
         else:
+            # Filter to genes that exist in the dataset
             genes = [gene for gene in genes if gene in self.adata.var_names]
             if len(genes) == 0:
                 raise ValueError("None of the specified genes were found in the dataset")
@@ -476,6 +372,7 @@ class SpatialAnalysis:
             print(f"Limiting analysis to {max_genes} randomly selected genes")
             genes = np.random.choice(genes, max_genes, replace=False)
             
+        # Define function to calculate Moran's I for a single gene
         def calculate_single_moran(gene):
             """Calculate Moran's I for a single gene"""
             # Get gene expression
@@ -488,9 +385,9 @@ class SpatialAnalysis:
             
             return {
                 'gene': gene,
-                'morans_i': moran.I,
-                'p_value': moran.p_sim,
-                'z_score': moran.z_sim
+                'morans_i': moran.I,         # Moran's I statistic
+                'p_value': moran.p_sim,      # p-value from simulation
+                'z_score': moran.z_sim       # z-score
             }
         
         # Calculate Moran's I for each gene in parallel
@@ -501,7 +398,7 @@ class SpatialAnalysis:
         # Convert results to DataFrame
         moran_df = pd.DataFrame(results)
         
-        # Sort by Moran's I
+        # Sort by Moran's I value (highest to lowest)
         moran_df = moran_df.sort_values('morans_i', ascending=False).reset_index(drop=True)
         
         print(f"Calculated Moran's I for {len(genes)} genes")
@@ -514,47 +411,24 @@ class SpatialAnalysis:
         """
         Analyze negative probe statistics within spatial bins.
         
-        This method calculates statistics for negative control probes (technical controls)
+        This function calculates statistics for negative control probes (technical controls)
         across spatial locations. It can work with either original cells or binned data.
         
-        Parameters:
-            prefix (str): Prefix for identifying negative probe genes.
-            bin_size (Optional[float]): Size of spatial bins. If None, original cells are used.
+        Args:
+            prefix: Prefix for identifying negative probe genes
+            bin_size: Size of spatial bins (if None, original cells are used)
             
         Returns:
-            pd.DataFrame: DataFrame with negative probe statistics for each cell or bin.
+            DataFrame with negative probe statistics for each cell or bin
             
         Raises:
-            ValueError: If no negative probes are found with the specified prefix.
+            ValueError: If no negative probes are found with the specified prefix
             
-        Examples:
-            >>> spatial = SpatialAnalysis(adata)
-            >>> 
-            >>> # Analyze negative probes on original cells
-            >>> neg_stats = spatial.analyze_negative_probes()
-            >>> 
-            >>> # Analyze negative probes in spatial bins
-            >>> neg_stats = spatial.analyze_negative_probes(bin_size=100)
-            >>> 
-            >>> # Use a different prefix for negative probes
-            >>> neg_stats = spatial.analyze_negative_probes(prefix='NegControl')
-            >>> 
-            >>> # Create a spatial plot of negative probe mean
-            >>> plt.scatter(
-            ...     neg_stats['x'], 
-            ...     neg_stats['y'], 
-            ...     c=neg_stats['negative_mean'], 
-            ...     cmap='viridis'
-            ... )
-        
-        Notes:
-            - Useful for assessing background noise levels across the tissue
-            - Can identify regions with technical artifacts
-            - Statistics calculated: mean, sum, standard deviation, coefficient of variation
-            - Individual probe values are also included in the output DataFrame
-            - Results include spatial coordinates for easy visualization
+        Note:
+            Negative probes are often included in spatial transcriptomics data as
+            technical controls. They help estimate background noise levels.
         """
-        # Identify negative probes
+        # Identify negative probes by prefix
         negative_probes = [gene for gene in self.adata.var_names if gene.startswith(prefix)]
         
         if len(negative_probes) == 0:
@@ -562,13 +436,13 @@ class SpatialAnalysis:
             
         print(f"Found {len(negative_probes)} negative probes with prefix '{prefix}'")
         
-        # Use original cells or create bins
+        # Use original cells or create spatial bins
         if bin_size is None:
-            # Use original cells
+            # Use original cells/spots
             adata = self.adata
             spatial_unit = "cell"
         else:
-            # Create spatial bins
+            # Create spatial bins and aggregate data
             adata = self.create_spatial_grid(bin_size=bin_size, genes=negative_probes)
             spatial_unit = "bin"
             
@@ -581,18 +455,19 @@ class SpatialAnalysis:
             if sparse.issparse(expr):
                 expr = expr.toarray().flatten()
                 
-            # Calculate statistics
+            # Calculate various statistics
             result = {
                 f'{spatial_unit}_id': adata.obs_names[i],
                 'x': adata.obsm[self.spatial_key][i, 0],
                 'y': adata.obsm[self.spatial_key][i, 1],
-                'negative_mean': np.mean(expr),
-                'negative_sum': np.sum(expr),
-                'negative_sd': np.std(expr),
+                'negative_mean': np.mean(expr),              # Mean expression
+                'negative_sum': np.sum(expr),                # Total counts
+                'negative_sd': np.std(expr),                 # Standard deviation
+                # Coefficient of variation (SD/mean), handling divide-by-zero
                 'negative_cv': np.std(expr) / np.mean(expr) if np.mean(expr) > 0 else np.nan
             }
             
-            # Add statistics for individual probes
+            # Add values for individual probes
             for j, probe in enumerate(negative_probes):
                 probe_value = expr[j]
                 result[f'{probe}'] = probe_value
