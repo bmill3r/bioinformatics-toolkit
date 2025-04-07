@@ -726,4 +726,85 @@ class SingleCellQC:
         stats['mad'] = self.adata.obs[metrics].apply(lambda x: np.median(np.abs(x - np.median(x))))
         
         # Calculate sparsity (fraction of zeros in the matrix)
-        sparsity = 1 - (np.count
+        sparsity = 1 - (np.count_nonzero(self.adata.X) / self.adata.X.size)
+        stats.loc['sparsity', 'mean'] = sparsity
+        
+        # Add gene stats
+        cells_per_gene = np.sum(self.adata.X > 0, axis=0)
+        if sparse.issparse(self.adata.X):
+            cells_per_gene = cells_per_gene.A1
+        
+        stats.loc['cells_per_gene', 'mean'] = np.mean(cells_per_gene)
+        stats.loc['cells_per_gene', 'std'] = np.std(cells_per_gene)
+        stats.loc['cells_per_gene', 'min'] = np.min(cells_per_gene)
+        stats.loc['cells_per_gene', '25%'] = np.percentile(cells_per_gene, 25)
+        stats.loc['cells_per_gene', '50%'] = np.median(cells_per_gene)
+        stats.loc['cells_per_gene', '75%'] = np.percentile(cells_per_gene, 75)
+        stats.loc['cells_per_gene', 'max'] = np.max(cells_per_gene)
+        stats.loc['cells_per_gene', 'mad'] = np.median(np.abs(cells_per_gene - np.median(cells_per_gene)))
+        
+        # Add dataset dimensions
+        stats.loc['dataset_dimensions', 'count'] = f"{self.adata.shape[0]} cells × {self.adata.shape[1]} genes"
+        
+        return stats
+    
+    def run_qc_pipeline(self, 
+                      data_source,
+                      min_genes: int = 200,
+                      min_cells: int = 3,
+                      max_mito: float = 20.0,
+                      n_mads: float = 5.0,
+                      save_path: Optional[str] = None,
+                      plotly: bool = False) -> Tuple[ad.AnnData, pd.DataFrame]:
+        """
+        Run the full QC pipeline from data loading to visualization.
+        
+        This is a convenience function that chains together the main QC steps:
+        1. Loading data
+        2. Calculating QC metrics
+        3. Getting threshold recommendations
+        4. Filtering cells based on QC
+        5. Creating QC visualizations
+        6. Computing summary statistics
+        
+        Args:
+            data_source: The data to load (same options as load_data)
+            min_genes: Minimum number of genes for a cell to pass filter
+            min_cells: Minimum number of cells a gene is expressed in to pass filter
+            max_mito: Maximum percentage of mitochondrial reads
+            n_mads: Number of median absolute deviations for outlier detection
+            save_path: Path to save QC plots
+            plotly: Whether to use Plotly for interactive visualizations
+            
+        Returns:
+            Tuple containing:
+            - Filtered AnnData object
+            - DataFrame with summary statistics
+        """
+        self.log("Running full QC pipeline")
+        
+        # Load data
+        self.load_data(data_source)
+        
+        # Calculate QC metrics
+        self.calculate_qc_metrics(min_genes=min_genes, min_cells=min_cells)
+        
+        # Get recommended thresholds
+        thresholds = self.get_qc_thresholds(n_mads=n_mads, max_mito=max_mito)
+        
+        # Filter cells
+        self.filter_cells(
+            min_genes=thresholds['min_genes'],
+            max_genes=thresholds['max_genes'],
+            min_counts=thresholds['min_counts'],
+            max_counts=thresholds['max_counts'],
+            max_mito=thresholds['max_mito']
+        )
+        
+        # Create QC plots
+        self.plot_qc_metrics(save_path=save_path, use_plotly=plotly)
+        
+        # Compute summary statistics
+        stats = self.compute_summary_statistics()
+        
+        return self.adata, stats
