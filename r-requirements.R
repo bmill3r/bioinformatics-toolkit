@@ -1,0 +1,61 @@
+# R package installation script for bioinformatics toolkit
+
+# Function to install packages if not already installed
+install_if_missing <- function(package_name, repository = "CRAN") {
+  if (!requireNamespace(package_name, quietly = TRUE)) {
+    if (repository == "CRAN") {
+      install.packages(package_name, repos = "http://cran.rstudio.com/")
+    } else if (repository == "Bioconductor") {
+      if (!requireNamespace("BiocManager", quietly = TRUE)) {
+        install.packages("BiocManager", repos = "http://cran.rstudio.com/")
+      }
+      BiocManager::install(package_name)
+    } else if (repository == "Github") {
+      if (!requireNamespace("devtools", quietly = TRUE)) {
+        install.packages("devtools", repos = "http://cran.rstudio.com/")
+      }
+      devtools::install_github(package_name)
+    }
+  }
+}
+
+# Install CRAN packages
+cran_packages <- c(
+  "Seurat", "SeuratObject", "SeuratDisk", "leiden", "ggplot2", 
+  "dplyr", "tidyr", "patchwork", "spatstat", "Matrix", "MASS", 
+  "data.table", "cowplot", "ggrepel", "reticulate", "hdf5r", "Rtsne"
+)
+
+# Install Bioconductor packages
+bioc_packages <- c(
+  "SingleCellExperiment", "scran", "scater", "BiocParallel", 
+  "DropletUtils", "sctransform", "limma", "edgeR", "monocle3",
+  "AUCell", "MAST"
+)
+
+# Install GitHub packages
+github_packages <- c(
+  "cole-trapnell-lab/leidenbase",
+  "mojaveazure/seurat-disk"
+)
+
+# Install base packages
+install.packages(c("BiocManager", "devtools", "remotes"), repos = "http://cran.rstudio.com/")
+
+# Install CRAN packages
+for (pkg in cran_packages) {
+  install_if_missing(pkg, "CRAN")
+}
+
+# Install Bioconductor packages
+for (pkg in bioc_packages) {
+  install_if_missing(pkg, "Bioconductor")
+}
+
+# Install GitHub packages
+for (pkg in github_packages) {
+  install_if_missing(pkg, "Github")
+}
+
+# Print session info
+sessionInfo()

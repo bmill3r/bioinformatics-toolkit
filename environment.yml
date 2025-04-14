@@ -38,6 +38,7 @@ dependencies:
   - pynndescent
   - louvain
   - igraph
+  - fa2
   
   # File formats & data management
   - h5py
@@ -61,28 +62,30 @@ dependencies:
   - awscli
   
   # Spatial analysis
+  - squidpy
   - pysal
   
   # Pip-installed packages
   - pip:
     # Latest versions of single-cell packages
-    - scanpy-scripts
+    # Temporarily commenting out problematic packages
+    # - scanpy-scripts
     - velocyto
     - scvi-tools>=0.16.0
-    - squidpy>=1.2.0
-    - napari[all]
-    - loompy>=3.0.0
+    # - squidpy>=1.2.0
+    # - napari[all]
+    - loompy==3.0.6
     
     # Spatial analysis
-    - spatialde
+    # - spatialde
     - spatialdata-io
     
     # Utilities for bioinformatics
     - gseapy
     - mygene
-    - MulticoreTSNE
+    # - MulticoreTSNE
     - harmonypy
-    - fa2
+    # - fa2
     
     # Additional visualizations
     - celluloid  # For animations
@@ -92,9 +95,10 @@ dependencies:
     - anndata2ri
     
     # AWS support
-    - boto3
-    - s3fs
+    # - boto3
+    # - s3fs
     
     # GPU support (if available)
     - cupy-cuda11x; platform_system != "Darwin"
-    - rapids-core-cuda11x; platform_system != "Darwin"
+    # Removing rapids-core-cuda11x as it's causing installation issues
+    # - rapids-core-cuda11x; platform_system != "Darwin"
