@@ -726,7 +726,7 @@ class SingleCellQC:
             ValueError: If no data has been loaded
         """
         if self.adata is None:
-            raise ValueError("No data loaded. Please call
+            raise ValueError("No data loaded. Please call load_data() first.")  
         
         self.log("Computing summary statistics")
         
