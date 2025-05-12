@@ -5,6 +5,20 @@ All notable changes to the bioinformatics-toolkit project will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2025-05-11 (Update 2)
+
+### Added
+- Added Docker script (docker-jupyter.sh) for development environment
+- Added automatic development mode installation for local packages
+- Enhanced Jupyter Lab startup with conda environment activation
+
+### Changed
+- Switched base image from jupyter/datascience-notebook to condaforge/mambaforge for lighter footprint
+- Updated container setup to use both environment.yml and environment-r.yml files
+- Improved workspace mounting for better code persistence between container and host
+- Removed redundant pip installations since packages are in environment files
+- Set container to start directly in the mounted code directory
+
 ## 2025-05-11
 
 ### Added

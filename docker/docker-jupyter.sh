@@ -1,5 +1,5 @@
 #!/bin/bash
-# Podman Development Jupyter container for Bioinformatics Toolkit
+# Docker Development Jupyter container for Bioinformatics Toolkit
 # This script runs a development container that mounts the local codebase and starts Jupyter Lab in the sctools-py environment
 
 set -e  # Exit immediately if a command exits with a non-zero status
@@ -20,20 +20,20 @@ NC='\033[0m' # No Color
 
 # Print banner
 echo -e "${BLUE}==========================================${NC}"
-echo -e "${GREEN}Running Podman Development Jupyter Environment${NC}"
+echo -e "${GREEN}Running Docker Development Jupyter Environment${NC}"
 echo -e "${GREEN}Using sctools-py and sctools-r environments${NC}"
 echo -e "${BLUE}==========================================${NC}"
 
-# Check if Podman is installed
-if ! command -v podman &> /dev/null; then
-    echo -e "${RED}Error: Podman is not installed.${NC}"
-    echo -e "Please install Podman first."
+# Check if Docker is installed
+if ! command -v docker &> /dev/null; then
+    echo -e "${RED}Error: Docker is not installed.${NC}"
+    echo -e "Please install Docker first."
     exit 1
 fi
 
 # Always rebuild the image to ensure latest environment files are used
 echo -e "${YELLOW}Building development image with conda environments...${NC}"
-podman build --format docker --progress=plain --no-cache --memory 16g -t ${FULL_IMAGE} -f ${REPO_ROOT}/docker/dev-container.Dockerfile ${REPO_ROOT}
+docker build --progress=plain --no-cache -t ${FULL_IMAGE} -f ${REPO_ROOT}/docker/dev-container.Dockerfile ${REPO_ROOT}
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}Build failed!${NC}"
@@ -62,30 +62,29 @@ else
 fi
 
 # Run the container with the repository mounted
-# For Windows users, convert Windows paths to Podman paths if using Git Bash or similar
+# For Windows users, convert Windows paths to Docker paths if using Git Bash or similar
 if [[ "$OSTYPE" == "msys"* ]] || [[ "$OSTYPE" == "cygwin"* ]]; then
-    REPO_ROOT_PODMAN=$(echo ${REPO_ROOT} | sed 's/^\([a-zA-Z]\):/\/\1/' | sed 's/\\/\//g')
-    DATA_PATH_PODMAN="${REPO_ROOT_PODMAN}/data"
+    REPO_ROOT_DOCKER=$(echo ${REPO_ROOT} | sed 's/^\([a-zA-Z]\):/\/\1/' | sed 's/\\/\//g')
+    DATA_PATH_DOCKER="${REPO_ROOT_DOCKER}/data"
     
-    echo -e "${YELLOW}Detected Windows environment, converting paths for Podman...${NC}"
-    echo -e "${BLUE}Using ${REPO_ROOT_PODMAN} as repository path${NC}"
+    echo -e "${YELLOW}Detected Windows environment, converting paths for Docker...${NC}"
+    echo -e "${BLUE}Using ${REPO_ROOT_DOCKER} as repository path${NC}"
     
     if [ "$HAS_GPU" = true ]; then
-        podman run -it --rm \
-            --security-opt=label=disable \
-            --hooks-dir=/usr/share/containers/oci/hooks.d \
+        docker run -it --rm \
+            --gpus all \
             -p 8888:8888 \
-            -v "${REPO_ROOT_PODMAN}:/data/repo:Z" \
-            -v "${DATA_PATH_PODMAN}:/data/data:Z" \
+            -v "${REPO_ROOT_DOCKER}:/data/repo" \
+            -v "${DATA_PATH_DOCKER}:/data/data" \
             -e "PYTHONPATH=/data/repo" \
             -e "NVIDIA_VISIBLE_DEVICES=all" \
             --workdir /data/repo \
             ${FULL_IMAGE}
     else
-        podman run -it --rm \
+        docker run -it --rm \
             -p 8888:8888 \
-            -v "${REPO_ROOT_PODMAN}:/data/repo:Z" \
-            -v "${DATA_PATH_PODMAN}:/data/data:Z" \
+            -v "${REPO_ROOT_DOCKER}:/data/repo" \
+            -v "${DATA_PATH_DOCKER}:/data/data" \
             -e "PYTHONPATH=/data/repo" \
             --workdir /data/repo \
             ${FULL_IMAGE}
@@ -93,21 +92,20 @@ if [[ "$OSTYPE" == "msys"* ]] || [[ "$OSTYPE" == "cygwin"* ]]; then
 else
     # Linux/Mac OS X path handling
     if [ "$HAS_GPU" = true ]; then
-        podman run -it --rm \
-            --security-opt=label=disable \
-            --hooks-dir=/usr/share/containers/oci/hooks.d \
+        docker run -it --rm \
+            --gpus all \
             -p 8888:8888 \
-            -v "${REPO_ROOT}:/data/repo:Z" \
-            -v "${REPO_ROOT}/data:/data/data:Z" \
+            -v "${REPO_ROOT}:/data/repo" \
+            -v "${REPO_ROOT}/data:/data/data" \
             -e "PYTHONPATH=/data/repo" \
             -e "NVIDIA_VISIBLE_DEVICES=all" \
             --workdir /data/repo \
             ${FULL_IMAGE}
     else
-        podman run -it --rm \
+        docker run -it --rm \
             -p 8888:8888 \
-            -v "${REPO_ROOT}:/data/repo:Z" \
-            -v "${REPO_ROOT}/data:/data/data:Z" \
+            -v "${REPO_ROOT}:/data/repo" \
+            -v "${REPO_ROOT}/data:/data/data" \
             -e "PYTHONPATH=/data/repo" \
             --workdir /data/repo \
             ${FULL_IMAGE}
@@ -118,21 +116,21 @@ fi
 # Uncomment the following to mount AWS credentials
 # For Windows:
 # if [[ "$OSTYPE" == "msys"* ]] || [[ "$OSTYPE" == "cygwin"* ]]; then
-#     S3_CREDENTIALS_PODMAN=$(echo ${S3_CREDENTIALS} | sed 's/^\([a-zA-Z]\):/\/\1/' | sed 's/\\/\//g')
-#     podman run -it --rm \
+#     S3_CREDENTIALS_DOCKER=$(echo ${S3_CREDENTIALS} | sed 's/^\([a-zA-Z]\):/\/\1/' | sed 's/\\/\//g')
+#     docker run -it --rm \
 #         -p 8888:8888 \
-#         -v "${REPO_ROOT_PODMAN}:/data/repo:Z" \
-#         -v "${DATA_PATH_PODMAN}:/data/data:Z" \
-#         -v "${S3_CREDENTIALS_PODMAN}:/home/developer/.aws/credentials:ro" \
+#         -v "${REPO_ROOT_DOCKER}:/data/repo" \
+#         -v "${DATA_PATH_DOCKER}:/data/data" \
+#         -v "${S3_CREDENTIALS_DOCKER}:/home/developer/.aws/credentials:ro" \
 #         -e "PYTHONPATH=/data/repo" \
 #         --workdir /data/repo \
 #         ${FULL_IMAGE}
 # else
 #     # Linux/Mac OS X AWS credentials
-#     podman run -it --rm \
+#     docker run -it --rm \
 #         -p 8888:8888 \
-#         -v "${REPO_ROOT}:/data/repo:Z" \
-#         -v "${REPO_ROOT}/data:/data/data:Z" \
+#         -v "${REPO_ROOT}:/data/repo" \
+#         -v "${REPO_ROOT}/data:/data/data" \
 #         -v "${S3_CREDENTIALS}:/home/developer/.aws/credentials:ro" \
 #         -e "PYTHONPATH=/data/repo" \
 #         --workdir /data/repo \

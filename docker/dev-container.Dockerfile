@@ -1,29 +1,52 @@
-# Development Dockerfile for Bioinformatics Toolkit
-FROM docker.io/jupyter/datascience-notebook:python-3.10
+# Stage 1: Dependency solver and package downloader
+FROM nvidia/cuda:12.4.0-devel-ubuntu22.04 as solver
 
-USER root
+# Set environment variables for solver stage
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PATH=/opt/conda/bin:$PATH
+
+# Install minimal system dependencies needed for conda
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    ca-certificates \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+    
+# Install Miniconda/Mamba in solver stage
+RUN wget -q https://github.com/conda-forge/miniforge/releases/download/25.3.0-1/Miniforge3-25.3.0-1-Linux-x86_64.sh -O /tmp/mambaforge.sh \
+    && bash /tmp/mambaforge.sh -b -p /opt/conda \
+    && rm /tmp/mambaforge.sh \
+    && chmod -R 777 /opt/conda
+
+# Copy environment files to solver
+COPY environment-py.yml /tmp/environment-py.yml
+COPY environment-r.yml /tmp/environment-r.yml
+
+# PRE-SOLVE dependencies and download packages without installing
+RUN mamba create --name sctools-py --dry-run -f /tmp/environment-py.yml && \
+    mamba create --name sctools-r --dry-run -f /tmp/environment-r.yml
+
+# Stage 2: Final build with pre-downloaded packages
+FROM nvidia/cuda:12.4.0-devel-ubuntu22.04
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
-ENV R_LIBS_SITE=/usr/local/lib/R/site-library
-ENV R_LIBS_USER=/opt/conda/lib/R/library
+ENV PATH=/opt/conda/bin:$PATH
 
 # Install required system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
+    wget \
     libcurl4-openssl-dev \
     libssl-dev \
     libxml2-dev \
     libhdf5-dev \
     libigraph-dev \
-    libboost-all-dev \
+    libboost-dev \
     libgsl-dev \
-    gnupg \
-    lsb-release \
-    python3-dev \
-    awscli \
     git \
     git-lfs \
     libfftw3-dev \
@@ -31,51 +54,84 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgeos-dev \
     libgdal-dev \
     libproj-dev \
+    ca-certificates \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+    
+# Install Miniconda/Mamba
+RUN wget -q https://github.com/conda-forge/miniforge/releases/download/25.3.0-1/Miniforge3-25.3.0-1-Linux-x86_64.sh -O /tmp/mambaforge.sh \
+    && bash /tmp/mambaforge.sh -b -p /opt/conda \
+    && rm /tmp/mambaforge.sh \
+    && ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh \
+    && echo '. /opt/conda/etc/profile.d/conda.sh' >> ~/.bashrc \
+    && echo 'conda activate base' >> ~/.bashrc \
+    && chmod -R 777 /opt/conda
 
-# Install Mamba for faster package management
-RUN conda install -y -c conda-forge mamba
+# Copy the pre-downloaded packages from solver stage
+COPY --from=solver /opt/conda/pkgs /opt/conda/pkgs
 
-# Copy environment.yml file
-COPY environment.yml /tmp/environment.yml
+# Set up basic CUDA environment variables
+ENV CUDA_HOME=/usr/local/cuda \
+    CUDA_PATH=/usr/local/cuda \
+    LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 
-# Create conda environment from environment.yml using Mamba
-RUN mamba env update -n base -f /tmp/environment.yml && \
-    mamba clean -afy && \
-    rm /tmp/environment.yml
+# Copy environment files
+COPY environment-py.yml /tmp/environment-py.yml
+COPY environment-r.yml /tmp/environment-r.yml
 
-# Install problematic packages separately with better error handling
-# First install core dependencies
-RUN pip install --no-cache-dir numpy h5py
+# Create sctools-py conda environment - should be faster now with pre-downloaded packages
+RUN mamba env create -f /tmp/environment-py.yml && \
+    conda clean -a
 
-# Install packages one by one with error handling
-# RUN pip install --no-cache-dir loompy==3.0.6 || echo "loompy installation failed, continuing..."
-# RUN pip install --no-cache-dir scanpy-scripts || echo "scanpy-scripts installation failed, continuing..."
-# RUN pip install --no-cache-dir squidpy || echo "squidpy installation failed, continuing..."
-# RUN pip install --no-cache-dir spatialdata-io || echo "spatialdata-io installation failed, continuing..."
-# RUN pip install --no-cache-dir --no-deps "napari<0.5.0" || echo "napari installation failed, continuing..."
+# Create sctools-r conda environment - should be faster now with pre-downloaded packages
+RUN mamba env create -f /tmp/environment-r.yml && \
+    conda clean -a && \
+    rm /tmp/environment-py.yml /tmp/environment-r.yml && \
+    conda run -n sctools-r R -e "IRkernel::installspec(name = 'sctools-r', displayname = 'R (sctools-r)')"
 
-# Copy R requirements file
-COPY r-requirements.R /tmp/r-requirements.R
+# Install NVIDIA Container Toolkit essentials
+RUN conda run -n sctools-py pip install --no-cache-dir cupy-cuda12x
 
-# Install R packages from requirements file
-RUN Rscript /tmp/r-requirements.R && \
-    rm /tmp/r-requirements.R
+# Make Python environment available as Jupyter kernel
+RUN conda run -n sctools-py python -m ipykernel install --user --name sctools-py --display-name "Python (sctools-py)"
+
+# Create a user with the same UID as the host user to avoid permission issues
+RUN useradd -m -s /bin/bash -N -u 1000 developer
 
 # Set up the project structure
-WORKDIR /app
+RUN mkdir -p /app/data /app/results /tmp/data /data
+RUN chown -R developer:developer /app /tmp/data /data /opt/conda
+# Fix conda permissions for nb_conda_kernels
+RUN chmod -R 755 /opt/conda/bin/conda
 
-# Create necessary directories
-RUN mkdir -p /app/data /app/results /tmp/data
-
-# Use the existing jovyan user (UID 1000) that comes with the Jupyter image
-# instead of creating a new user
-RUN chown -R jovyan:users /app
-USER jovyan
-
-# Set working directory for mounted volumes
+# Switch to the developer user
+USER developer
 WORKDIR /data
 
-# Default command
-CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=''", "--NotebookApp.password=''"]
+# Create a startup script to activate the sctools-py environment and start Jupyter
+RUN echo '#!/bin/bash\n\
+eval "$(conda shell.bash hook)"\n\
+# Set CUDA environment variables\n\
+export CUDA_HOME=/usr/local/cuda\n\
+export CUDA_PATH=/usr/local/cuda\n\
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH\n\
+\n\
+# Activate the conda environment\n\
+conda activate sctools-py\n\
+\n\
+# Verify CUDA availability\n\
+echo "CUDA Environment Information:"\n\
+python -c "import torch; print(\'CUDA Available: \', torch.cuda.is_available()); print(\'CUDA Devices: \', torch.cuda.device_count()); print(\'CUDA Device Name: \', torch.cuda.get_device_name(0) if torch.cuda.is_available() else \'None\')" || echo "PyTorch CUDA check failed"\n\
+\n\
+# Install local packages in development mode if setup.py exists\n\
+if [ -f "/data/repo/setup.py" ]; then\n\
+    echo "Installing sctools packages in development mode..."\n\
+    pip install -e /data/repo\n\
+fi\n\
+\n\
+# Start Jupyter Lab\n\
+exec jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --NotebookApp.token="" --NotebookApp.password=""' > /home/developer/start-jupyter.sh && \
+    chmod +x /home/developer/start-jupyter.sh
+
+# Default command to start Jupyter Lab in the sctools-py environment
+CMD ["/home/developer/start-jupyter.sh"]

@@ -149,6 +149,9 @@ source("R/DimensionalityReduction.R")
 source("R/Visualization.R")
 source("R/S3Utils.R")
 
+# To register the R kernel with Jupyter (needed when environment is first created)
+# IRkernel::installspec(name = 'sctools-r', displayname = 'R (sctools-r)')
+
 # Example workflow
 qc <- SingleCellQC()
 seurat_obj <- qc$load_data("path/to/data")
@@ -243,7 +246,21 @@ git clone https://github.com/yourusername/bioinformatics-toolkit.git
 cd bioinformatics-toolkit
 pip install -e .
 
-# Or create conda environment
+# Or create conda environments
+# For Python environment:
+conda env create -f environment-py.yml
+
+# For R environment:
+conda env create -f environment-r.yml
+
+# Important: After creating the R environment, you need to register the R kernel with Jupyter
+# so it appears in Jupyter Lab sessions:
+conda activate sctools-r
+R -e "IRkernel::installspec(name = 'sctools-r', displayname = 'R (sctools-r)')"
+
+# Note: For Docker deployment, include this registration step in your setup script
+# when building the Docker image.
+
 conda env create -f environment.yml
 conda activate sctools-py
 ```
