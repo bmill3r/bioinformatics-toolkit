@@ -1,0 +1,89 @@
+name: sctools-r
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  # Core system
+  - r-base>=4.3
+  - r-essentials
+  - python=3.13
+  - pip
+  
+  # Jupyter integration
+  - jupyter
+  - jupyterlab
+  - r-irkernel
+  
+  # Core data processing
+  - r-tidyverse
+  - r-data.table
+  - r-readxl
+  - r-arrow
+  
+  # Bioconductor
+  - bioconductor-biobase
+  - bioconductor-biocgenerics
+  - bioconductor-delayedarray
+  - bioconductor-singlecellexperiment
+  - bioconductor-zellkonverter
+  - bioconductor-scater
+  - bioconductor-scran
+  - bioconductor-dropletutils
+  - bioconductor-scuttle
+  - bioconductor-biocneighbors
+  - bioconductor-biocparallel
+  - bioconductor-rhdf5
+  - bioconductor-deseq2
+  
+  # Single-cell packages
+  - r-seurat
+  - r-seuratobject
+  - r-scattermore
+  - r-reticulate
+  - r-sceasy
+  - r-monocle3
+  - r-sctransform
+  
+  # Visualization
+  - r-ggplot2
+  - r-cowplot
+  - r-patchwork
+  - r-pheatmap
+  - r-ggrepel
+  - r-scattermore
+  - r-viridis
+  - r-plotly
+  
+  # Machine learning and stats
+  - r-rtsne
+  - r-uwot
+  - r-glmnet
+  - r-caret
+  
+  # Spatial analysis
+  - r-spatstat
+  - r-sf
+  
+  # AWS integration
+  - r-aws.s3
+  - r-paws
+  
+  # HDF5 support
+  - r-hdf5r
+  - h5py
+  
+  # Development tools
+  - r-devtools
+  - r-usethis
+  - r-roxygen2
+  
+  # Other utilities
+  - r-pbapply
+  - r-future
+  - r-rcppparallel
+  - pip:
+    - anndata
+    - scanpy
+    - numpy
+    - pandas
