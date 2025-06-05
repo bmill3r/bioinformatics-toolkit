@@ -252,13 +252,135 @@ As an experienced bioinformatician, consider these factors when choosing a norma
 
 5. **Normalization influences all downstream analyses**: Different methods can yield different results in clustering and differential expression. When in doubt, try multiple methods and compare results.
 
+## 5a. Model-Based Normalization
+
+As an alternative to the standard normalization approaches above, our toolkit provides advanced model-based normalization through statistical models. The `SingleCellModelFitter` provides more sophisticated normalization methods that can better handle complex datasets, particularly those with batch effects.
+
+### Basic Model Fitting
+
+```python
+# Import the model fitting module
+from sctools.model_fitting import SingleCellModelFitter
+
+# Initialize the model fitter (use raw counts)
+fitter = SingleCellModelFitter(qc.adata, layer='raw')
+
+# Option 1: Fit a simple model for quick normalization
+fitter.fit_models(['depth_adjusted_nb'], n_genes=100)  # Fast, fits a small subset of genes
+fitter.add_normalized_layer('danb_normalized', method='log_norm')
+
+print(f"Available normalized layers: {list(qc.adata.layers.keys())}")
+
+# Use the normalized layer in subsequent analysis
+# e.g., for PCA, set the layer parameter: dim_reduction.run_pca(layer='danb_normalized')
+```
+
+### Advanced Model Selection
+
+```python
+# Fit multiple models and compare them
+fitter.fit_models([
+    'poisson',                # Simple Poisson distribution
+    'negative_binomial',       # Classic NB for overdispersed counts
+    'zero_inflated_nb',        # NB with excess zeros
+    'depth_adjusted_nb'        # NB with size factors (recommended)
+], n_genes=200)  # Compare models on 200 genes
+
+# Compare models using information criteria
+comparison = fitter.compare_models('aic')  # or 'bic'
+print("Best model counts:")
+print(comparison['best_model'].value_counts())
+
+# Visualize model comparison
+fitter.plot_model_comparison(figsize=(10, 6))
+```
+
+### Handling Batch Effects
+
+For multi-sample datasets, specialized batch-aware models provide tiered batch correction:
+
+```python
+# Initialize with batch information
+fitter = SingleCellModelFitter(
+    qc.adata,
+    layer='raw',
+    batch_key='sample_id'  # Column in adata.obs with batch/sample info
+)
+
+# Tier 1 batch correction: automatically uses batch-aware size factors
+fitter.fit_models(['depth_adjusted_nb'], n_genes=100)
+fitter.add_normalized_layer('tier1_norm', method='log_norm')
+
+# Tier 3 batch correction: hierarchical modeling (explicitly models batch effects)
+fitter.fit_models(['hierarchical_nb'], n_genes=500)  # More genes for better batch effect modeling
+fitter.add_normalized_layer(
+    'batch_corrected',
+    model_name='hierarchical_nb',
+    method='batch_corrected'
+)
+
+# Optional: visualize batch effects
+if 'hierarchical_nb' in fitter.model_results:
+    example_gene = list(fitter.model_results['hierarchical_nb'].keys())[0]
+    model = fitter.model_results['hierarchical_nb'][example_gene]['model']
+    batch_effects = model.get_batch_effects_summary()
+    print(f"Batch effects for {example_gene}: {batch_effects}")
+```
+
+### Memory-Efficient Processing for Large Datasets
+
+```python
+# For million-cell datasets, focus on highly variable genes
+hvg_genes = fitter.normalize_hvg_only(
+    model_name='depth_adjusted_nb',
+    method='log_norm',
+    n_top_genes=2000,
+    preserve_sparsity=True  # Important for large datasets
+)
+
+# Check memory usage
+memory_info = fitter.get_memory_usage()
+print(f"Memory usage: {memory_info['total_estimated_mb']:.1f} MB")
+```
+
+### Expert Tips: Model-Based Normalization
+
+1. **Choice of model**: `depth_adjusted_nb` is a good default for single-sample datasets, while `hierarchical_nb` is better when you have multiple samples/batches.
+
+2. **Preservation of sparsity**: Use `preserve_sparsity=True` with methods like `log_norm` to maintain data sparsity. For large datasets, avoid `pearson_residuals` and `deviance_residuals` as they create dense matrices.
+
+3. **Diagnostic plots**: Always examine `fitter.plot_model_fit()` for a random sample of genes to ensure the model fits your data well.
+
+4. **Tiered approach**: Apply batch correction in tiers - first use batch-aware size factors (Tier 1), then try hierarchical models (Tier 3) if needed.
+
 ## 6. Feature Selection
 
 Identifying highly variable genes focuses the analysis on biologically informative features.
 
 ```python
-# Initialize feature selection with normalized AnnData
+# Option 1: Initialize feature selection with standard normalized AnnData
 fs = FeatureSelection(norm.adata)
+
+# Option 2: Initialize feature selection with model-based normalized AnnData
+# If you've used the SingleCellModelFitter from section 5a
+if 'danb_normalized' in qc.adata.layers:
+    # Specify which normalized layer to use
+    fs = FeatureSelection(qc.adata, layer='danb_normalized')
+    
+    # OR for batch-corrected data
+    # fs = FeatureSelection(qc.adata, layer='batch_corrected')
+    
+    print(f"Using model-based normalization layer for feature selection")
+    
+# You can also create a copy with the normalized layer as the main matrix
+# This is useful if other tools don't support layer specification
+if 'danb_normalized' in qc.adata.layers:
+    # Create a copy with the normalized layer as X
+    adata_norm = qc.adata.copy()
+    adata_norm.X = adata_norm.layers['danb_normalized']
+    
+    # Now use this copy for feature selection
+    fs = FeatureSelection(adata_norm)
 
 # Find highly variable genes
 fs.find_highly_variable_genes(

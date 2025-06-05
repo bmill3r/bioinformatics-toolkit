@@ -5,6 +5,23 @@ All notable changes to the bioinformatics-toolkit project will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2025-06-05
+
+### Added
+- Added `SingleCellModelFitter` class for comprehensive model fitting to single-cell data
+- Added standard statistical models:
+  - `BaseModel`: Abstract base class for all statistical models
+  - `PoissonModel`: For simple count data
+  - `NegativeBinomialModel`: For overdispersed count data
+  - `ZeroInflatedNBModel`: For data with excess zeros
+  - `BernoulliModel`: For presence/absence analysis
+  - `DepthAdjustedNBModel`: For depth-normalized count data
+- Added batch-aware models for advanced single-cell analysis:
+  - `RegularizedNBModel`: With global mean-variance trend regularization
+  - `HierarchicalNBModel`: With batch effect modeling
+  - `MixedEffectsNBModel`: With fixed and random effects for advanced batch correction
+- Implemented comprehensive diagnostic visualizations and model comparison metrics
+
 ## 2025-05-11 (Update 2)
 
 ### Added
